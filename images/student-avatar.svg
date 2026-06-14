@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Face / skin -->
+  <circle cx="50" cy="44" r="24" fill="#FDBCB4"/>
+  <!-- Hair -->
+  <path d="M26 41 Q26 17 50 17 Q74 17 74 41 Q70 27 50 27 Q30 27 26 41Z" fill="#3E1F00"/>
+  <!-- Ears -->
+  <ellipse cx="26" cy="46" rx="5" ry="5.5" fill="#FDBCB4"/>
+  <ellipse cx="74" cy="46" rx="5" ry="5.5" fill="#FDBCB4"/>
+  <ellipse cx="26" cy="46" rx="3" ry="3.5" fill="#EFA090"/>
+  <ellipse cx="74" cy="46" rx="3" ry="3.5" fill="#EFA090"/>
+  <!-- Eyes white -->
+  <ellipse cx="41" cy="43" rx="4" ry="4.5" fill="white"/>
+  <ellipse cx="59" cy="43" rx="4" ry="4.5" fill="white"/>
+  <!-- Iris -->
+  <circle cx="41.5" cy="43.5" r="2.6" fill="#1A0800"/>
+  <circle cx="59.5" cy="43.5" r="2.6" fill="#1A0800"/>
+  <!-- Eye shine -->
+  <circle cx="42.5" cy="42.3" r="1" fill="white"/>
+  <circle cx="60.5" cy="42.3" r="1" fill="white"/>
+  <!-- Eyebrows -->
+  <path d="M37 37.5 Q41 34.5 45 37.5" stroke="#3E1F00" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+  <path d="M55 37.5 Q59 34.5 63 37.5" stroke="#3E1F00" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+  <!-- Nose -->
+  <path d="M47.5 50.5 Q50 53.5 52.5 50.5" stroke="#D4907A" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  <!-- Smile -->
+  <path d="M42 57.5 Q50 65 58 57.5" stroke="#C05A44" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  <!-- Cheek blush -->
+  <circle cx="34.5" cy="54" r="6" fill="#FFB3B3" opacity="0.45"/>
+  <circle cx="65.5" cy="54" r="6" fill="#FFB3B3" opacity="0.45"/>
+  <!-- Neck -->
+  <rect x="43" y="66" width="14" height="10" rx="3" fill="#FDBCB4"/>
+  <!-- Uniform (PS navy blue) -->
+  <path d="M12 100 L18 76 Q32 72 42 75 L50 81 L58 75 Q68 72 82 76 L88 100Z" fill="#1A3A6B"/>
+  <!-- Collar left -->
+  <path d="M42 75 L50 83 L50 81 L44 72Z" fill="white"/>
+  <!-- Collar right -->
+  <path d="M58 75 L50 83 L50 81 L56 72Z" fill="white"/>
+</svg>

@@ -18,7 +18,18 @@ let state = {
   calendarYear: 2026,
   calendarMonth: 10,  // 0-indexed: 10 = November
   recommendRound: 'all',   // 'all'|'round1'|'round2'|'round3'|'round4'
-  prefSearchQuery: ''      // search query inside preferences modal
+  prefSearchQuery: '',     // search query inside preferences modal
+  plannerTargetId: null,   // program id currently shown in Planner's score-gap section (null = use rank #1)
+  plannerPortfolioTargetId: null,  // program id currently shown in Planner's Portfolio-readiness section
+  plannerExpandedEvents: new Set(),  // event ids with the detail/attachment panel open (not persisted)
+  studyLogWeekStart: null,   // ISO date (Monday) of the week currently shown in ตารางอ่านหนังสือ
+  studyLogAddingCell: null,  // "date|block" key of the cell currently showing its inline add-form
+  studyLogEditingId: null,   // id of the study-log entry currently showing its inline edit-form
+  mockTestDraft: null,       // in-progress mock-test session being composed/edited (not saved until "บันทึก")
+  mockTestFormMode: null,    // null | 'new' | <entryId being edited>
+  mistakeLogDraft: null,     // in-progress mistake-log entry being composed/edited
+  mistakeLogFormMode: null,  // null | 'new' | <entryId being edited>
+  mistakeLogSubjectFilter: 'all'  // 'all' | subjectKey
 };
 
 // ---- Default Student Data ----
@@ -56,8 +67,17 @@ function defaultData() {
       competitions: [],
       volunteer: []
     },
+    mockTests: [],   // [{ id, date, source, scores: {subjectKey: value}, files: [{name, dataUrl}] }]
+    mistakeLog: [],  // [{ id, date, subject, topic, reason, correctAnswer, files: [{name, dataUrl}] }]
     interests: [],
     preferences: [],   // 10 อันดับคณะที่สนใจ (array of program IDs, ordered)
+    planner: {
+      roundPlans: { round1: [], round2: [], round3: [], round4: [] },  // { roundKey: [programId, ...] }
+      completedEvents: {},   // { eventId: true }
+      eventNotes: {},        // { eventId: { note: '', files: [{name, dataUrl}] } }
+      selfNote: '',
+      studyLog: []   // [{ id, date: 'YYYY-MM-DD', subject, topic, done }]
+    },
     updatedAt: null
   };
 }
@@ -164,6 +184,10 @@ function renderPage(page) {
     case 'guide': renderGuide(); break;
     case 'recommend': renderRecommendations(); break;
     case 'calendar': renderCalendar(); break;
+    case 'planner': renderPlanner(); break;
+    case 'studylog': renderStudyLog(); break;
+    case 'mocktest': renderMockTestPage(); break;
+    case 'mistakelog': renderMistakeLogPage(); break;
   }
 }
 
@@ -209,7 +233,7 @@ function renderDashboard() {
     <!-- Welcome Banner -->
     <div class="welcome-banner">
       <div class="welcome-title">สวัสดี, ${name}! 👋</div>
-      <div class="welcome-sub">ระบบแนะแนวการศึกษาต่อ TCAS70 · โรงเรียนโพธิสารพิทยากร · ปีการศึกษา 2569</div>
+      <div class="welcome-sub">ระบบแนะแนวการศึกษาต่อระดับอุดมศึกษา ปีการศึกษา 2570</div>
       <div class="welcome-actions">
         <button class="btn btn-white btn-sm" onclick="navigate('recommend')">🎯 ดูคณะที่เหมาะกับคุณ</button>
         <button class="btn btn-white-outline btn-sm" onclick="navigate('university')">🔍 ค้นหาคณะ/มหาวิทยาลัย</button>
@@ -220,7 +244,7 @@ function renderDashboard() {
     <!-- KPI Cards Row -->
     <div class="dash-kpi-row">
       ${renderKPICard('📊', 'เกรดเฉลี่ยสะสม', cumGPA > 0 ? cumGPA.toFixed(2) : '—', 'จาก 4.00', cumGPA / 4, 'var(--primary)', 'scores')}
-      ${renderKPICard('🧠', 'TGAT รวม', tgatTotal > 0 ? tgatTotal : '—', 'จาก 450', tgatTotal / 450, '#6366F1', 'scores')}
+      ${renderKPICard('🧠', 'TGAT รวม', tgatTotal > 0 ? tgatTotal : '—', 'จาก 300', tgatTotal / 300, '#6366F1', 'scores')}
       ${renderKPICard('🏆', 'ผลงาน/กิจกรรม', totalItems, 'รายการ', Math.min(totalItems / 20, 1), 'var(--accent)', 'portfolio')}
       ${renderKPICard('🥇', 'รางวัลระดับชาติ+', nationalAwards, 'รางวัล', Math.min(nationalAwards / 5, 1), 'var(--success)', 'portfolio')}
     </div>
@@ -386,9 +410,9 @@ function renderGPABarChart(gpa) {
 
 function renderTGATChart(scores) {
   const items = [
-    { key: 'tgat1', label: 'TGAT1 อังกฤษ', max: 150, color: '#6366F1' },
-    { key: 'tgat2', label: 'TGAT2 เหตุผล', max: 150, color: '#8B5CF6' },
-    { key: 'tgat3', label: 'TGAT3 สมรรถนะ', max: 150, color: '#A78BFA' }
+    { key: 'tgat1', label: 'TGAT1 อังกฤษ', max: 100, color: '#6366F1' },
+    { key: 'tgat2', label: 'TGAT2 เหตุผล', max: 100, color: '#8B5CF6' },
+    { key: 'tgat3', label: 'TGAT3 สมรรถนะ', max: 100, color: '#A78BFA' }
   ];
   const hasAny = items.some(i => parseFloat(scores[i.key]) > 0);
   if (!hasAny) return `<div class="dash-empty" onclick="navigate('scores')">
@@ -411,7 +435,7 @@ function renderTGATChart(scores) {
           </div>
         `;
       }).join('')}
-      ${total > 0 ? `<div class="tgat-total-row"><span>รวม TGAT</span><strong style="color:#6366F1">${total} / 450</strong><span style="color:var(--text-muted);font-size:0.75rem">(${Math.round(total/450*100)}%)</span></div>` : ''}
+      ${total > 0 ? `<div class="tgat-total-row"><span>รวม TGAT</span><strong style="color:#6366F1">${total} / 300</strong><span style="color:var(--text-muted);font-size:0.75rem">(${Math.round(total/300*100)}%)</span></div>` : ''}
     </div>
   `;
 }
@@ -605,9 +629,9 @@ function renderScoreSummaryWidget() {
       <div class="card">
         <div class="card-body">
           <div class="grid-3">
-            ${tgat1 > 0 ? `<div><div class="stat-label" style="font-size:0.72rem">TGAT1 อังกฤษ</div><div style="font-size:1.2rem;font-weight:700;color:var(--primary)">${tgat1}<span style="font-size:0.75rem;color:var(--text-muted)">/150</span></div></div>` : ''}
-            ${tgat2 > 0 ? `<div><div class="stat-label" style="font-size:0.72rem">TGAT2 เหตุผล</div><div style="font-size:1.2rem;font-weight:700;color:var(--primary)">${tgat2}<span style="font-size:0.75rem;color:var(--text-muted)">/150</span></div></div>` : ''}
-            ${tgat3 > 0 ? `<div><div class="stat-label" style="font-size:0.72rem">TGAT3 สมรรถนะ</div><div style="font-size:1.2rem;font-weight:700;color:var(--primary)">${tgat3}<span style="font-size:0.75rem;color:var(--text-muted)">/150</span></div></div>` : ''}
+            ${tgat1 > 0 ? `<div><div class="stat-label" style="font-size:0.72rem">TGAT1 อังกฤษ</div><div style="font-size:1.2rem;font-weight:700;color:var(--primary)">${tgat1}<span style="font-size:0.75rem;color:var(--text-muted)">/100</span></div></div>` : ''}
+            ${tgat2 > 0 ? `<div><div class="stat-label" style="font-size:0.72rem">TGAT2 เหตุผล</div><div style="font-size:1.2rem;font-weight:700;color:var(--primary)">${tgat2}<span style="font-size:0.75rem;color:var(--text-muted)">/100</span></div></div>` : ''}
+            ${tgat3 > 0 ? `<div><div class="stat-label" style="font-size:0.72rem">TGAT3 สมรรถนะ</div><div style="font-size:1.2rem;font-weight:700;color:var(--primary)">${tgat3}<span style="font-size:0.75rem;color:var(--text-muted)">/100</span></div></div>` : ''}
           </div>
           ${aLevels.length ? `
             <div class="divider"></div>
@@ -1022,6 +1046,10 @@ function renderScores() {
   initScoreInputs();
 }
 
+function renderMockTestPage() {
+  renderMockTestSection();
+}
+
 function switchScoreTab(btn, tab) {
   const container = document.getElementById('scores-content');
   container?.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1117,9 +1145,9 @@ function updateGPADisplay(key, val) {
 function renderTGATSection() {
   const s = state.studentData.scores;
   const tgats = [
-    { key: 'tgat1', name: 'TGAT1 ความถนัดสื่อสารภาษาอังกฤษ', max: 150, desc: 'วัดความสามารถด้านการอ่าน เขียน ฟัง พูด ภาษาอังกฤษ' },
-    { key: 'tgat2', name: 'TGAT2 การคิดอย่างมีเหตุผล', max: 150, desc: 'วัดทักษะการคิดวิเคราะห์ ตรรกะ และแก้ปัญหา' },
-    { key: 'tgat3', name: 'TGAT3 สมรรถนะการทำงานในโลกอนาคต', max: 150, desc: 'วัดทักษะการทำงานร่วมกัน การสื่อสาร และการแก้ปัญหา' }
+    { key: 'tgat1', name: 'TGAT1 ความถนัดสื่อสารภาษาอังกฤษ', max: 100, desc: 'วัดความสามารถด้านการอ่าน เขียน ฟัง พูด ภาษาอังกฤษ' },
+    { key: 'tgat2', name: 'TGAT2 การคิดอย่างมีเหตุผล', max: 100, desc: 'วัดทักษะการคิดวิเคราะห์ ตรรกะ และแก้ปัญหา' },
+    { key: 'tgat3', name: 'TGAT3 สมรรถนะการทำงานในโลกอนาคต', max: 100, desc: 'วัดทักษะการทำงานร่วมกัน การสื่อสาร และการแก้ปัญหา' }
   ];
 
   return `
@@ -1127,7 +1155,7 @@ function renderTGATSection() {
       <div class="score-section-title">🧠 TGAT - Thai General Aptitude Test</div>
       <div class="info-box mb-3" style="margin:16px 16px 0">
         <span>ℹ️</span>
-        <span>TGAT สอบในเดือน ธันวาคม 2569 สามารถสอบซ่อมได้ในเดือน มีนาคม 2570 คะแนนแต่ละวิชาสูงสุด 150 คะแนน รวม 450 คะแนน</span>
+        <span>TGAT สอบวันที่ 30 ม.ค. – 1 ก.พ. 2570 คะแนนแต่ละวิชาสูงสุด 100 คะแนน รวม 300 คะแนน ตรวจสอบกำหนดการล่าสุดที่ mytcas.com</span>
       </div>
       <table class="score-table">
         <thead><tr><th>วิชา</th><th>คะแนนที่ได้</th><th>เต็ม</th><th>%</th></tr></thead>
@@ -1167,10 +1195,10 @@ function renderTPATSection() {
   const s = state.studentData.scores;
   const tpats = [
     { key: 'tpat1', name: 'TPAT1 วิชาเฉพาะแพทย์ (กสพท)', max: 300, desc: 'จำเป็นสำหรับแพทย์ ทันตแพทย์ เภสัชบางที่ สัตวแพทย์บางที่' },
-    { key: 'tpat2', name: 'TPAT2 วิชาเฉพาะด้านศิลปะ', max: 100, desc: 'สำหรับสาขาศิลปะ ดนตรี นาฏศิลป์' },
-    { key: 'tpat3', name: 'TPAT3 วิชาเฉพาะสถาปัตยกรรม', max: 100, desc: 'สำหรับสถาปัตยกรรมศาสตร์และออกแบบ' },
-    { key: 'tpat4', name: 'TPAT4 วิชาเฉพาะครุศาสตร์/ศึกษาศาสตร์', max: 100, desc: 'สำหรับคณะครุศาสตร์/ศึกษาศาสตร์' },
-    { key: 'tpat5', name: 'TPAT5 วิชาเฉพาะกลุ่มสาธารณสุขศาสตร์', max: 100, desc: 'สำหรับพยาบาล เภสัช สาธารณสุข' }
+    { key: 'tpat2', name: 'TPAT2 วิชาเฉพาะด้านศิลปกรรมศาสตร์', max: 100, desc: 'สำหรับสาขาศิลปะ ดนตรี นาฏศิลป์' },
+    { key: 'tpat3', name: 'TPAT3 วิชาเฉพาะวิทยาศาสตร์ เทคโนโลยี วิศวกรรมศาสตร์', max: 100, desc: 'สำหรับวิศวกรรมศาสตร์ วิทยาศาสตร์ และเทคโนโลยี' },
+    { key: 'tpat4', name: 'TPAT4 วิชาเฉพาะสถาปัตยกรรมศาสตร์', max: 100, desc: 'สำหรับสถาปัตยกรรมศาสตร์และออกแบบ' },
+    { key: 'tpat5', name: 'TPAT5 วิชาเฉพาะครุศาสตร์/ศึกษาศาสตร์', max: 100, desc: 'สำหรับคณะครุศาสตร์/ศึกษาศาสตร์' }
   ];
 
   return `
@@ -1281,6 +1309,620 @@ function renderALevelSection() {
       </table>
     </div>
   `).join('');
+}
+
+function getAllTestSubjects() {
+  const list = [];
+  Object.values(TCAS_DATA.tests).forEach(cat => {
+    Object.entries(cat.subjects).forEach(([key, info]) => {
+      list.push({ key, name: info.name, max: info.maxScore, icon: info.icon, category: cat.name });
+    });
+  });
+  return list;
+}
+
+const MOCK_TEST_FILE_MAX_BYTES = 900 * 1024; // ~900KB per file (localStorage-friendly)
+
+function renderMockTestSection() {
+  const container = document.getElementById('mocktest-content');
+  if (!container) return;
+
+  const tests = state.studentData.mockTests || [];
+  const sorted = [...tests].sort((a, b) => b.date.localeCompare(a.date));
+
+  container.innerHTML = `
+    ${state.mockTestFormMode ? renderMockTestForm() : `
+      <div class="mb-3">
+        <button class="btn btn-primary btn-sm" onclick="openMockTestForm(null)">+ บันทึกผล Mock Test</button>
+      </div>
+    `}
+
+    ${sorted.length === 0 && !state.mockTestFormMode ? `
+      <div class="card">
+        <div class="card-body">
+          <div class="empty-state">
+            <div class="empty-state-icon">🧪</div>
+            <div class="empty-state-title">ยังไม่มีผล Mock Test</div>
+            <div class="empty-state-desc">บันทึกผลสอบจำลองแต่ละครั้งเพื่อดูพัฒนาการของคะแนนตามเวลา</div>
+          </div>
+        </div>
+      </div>
+    ` : `${renderMockTestTrend(sorted)}${(() => {
+        const labelWidth = measureMockTestLabelWidth(sorted);
+        const editingId = state.mockTestFormMode && state.mockTestFormMode !== 'new' ? state.mockTestFormMode : null;
+        return sorted.filter(t => t.id !== editingId).map(t => renderMockTestCard(t, labelWidth)).join('');
+      })()}`}
+  `;
+}
+
+// Measures the widest "icon + subject name" among subjects actually used across
+// all sessions, so every session's score table lines up its "คะแนนที่ได้" column
+// at the same x-position (a plain <table> can't share column widths across
+// separate table elements the way CSS Grid can, so this fills that gap).
+function measureMockTestLabelWidth(tests) {
+  const subjects = getAllTestSubjects();
+  const usedKeys = new Set();
+  tests.forEach(t => Object.entries(t.scores || {}).forEach(([k, v]) => {
+    if (v !== '' && v != null) usedKeys.add(k);
+  }));
+  if (!usedKeys.size) return 160;
+
+  const probe = document.createElement('td');
+  probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font-size:0.85rem;padding:0;left:-9999px;';
+  document.body.appendChild(probe);
+
+  let max = 0;
+  usedKeys.forEach(k => {
+    const info = subjects.find(s => s.key === k);
+    if (!info) return;
+    probe.textContent = `${info.icon} ${info.name}`;
+    const w = probe.getBoundingClientRect().width;
+    if (w > max) max = w;
+  });
+  document.body.removeChild(probe);
+  return Math.ceil(max) + 32; // + cell horizontal padding (16px each side)
+}
+
+function renderMockTestScoreTable(scores, labelWidth) {
+  const subjects = getAllTestSubjects();
+  const entries = Object.entries(scores || {}).filter(([k, v]) => v !== '' && v != null);
+  if (!entries.length) return `<div style="color:var(--text-muted);font-size:0.85rem">ยังไม่มีคะแนนวิชาบันทึกไว้</div>`;
+
+  const totalWidth = labelWidth + 110 + 70 + 70;
+  return `
+  <div style="overflow-x:auto">
+    <table class="score-table mocktest-score-table" style="width:${totalWidth}px">
+      <colgroup>
+        <col style="width:${labelWidth}px"><col style="width:110px"><col style="width:70px"><col style="width:70px">
+      </colgroup>
+      <thead><tr><th>วิชา</th><th>คะแนนที่ได้</th><th>เต็ม</th><th>%</th></tr></thead>
+      <tbody>
+        ${entries.map(([k, v]) => {
+          const info = subjects.find(s => s.key === k);
+          if (!info) return '';
+          const pct = Math.round(parseFloat(v) / info.max * 100);
+          const color = pct >= 70 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--danger)';
+          return `
+          <tr>
+            <td style="font-size:0.85rem">${info.icon} ${info.name}</td>
+            <td class="score-max">${v}</td>
+            <td class="score-max">${info.max}</td>
+            <td style="font-weight:600;color:${color}">${pct}%</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function renderMockTestTrend(tests) {
+  if (!tests.length) return '';
+
+  const subjects = getAllTestSubjects();
+  const bySubject = {};
+  tests.forEach(t => {
+    Object.entries(t.scores || {}).forEach(([k, v]) => {
+      if (v === '' || v == null) return;
+      (bySubject[k] = bySubject[k] || []).push({ date: t.date, val: parseFloat(v) });
+    });
+  });
+
+  const rows = Object.entries(bySubject)
+    .map(([k, arr]) => {
+      const info = subjects.find(s => s.key === k);
+      if (!info) return null;
+      const sorted = [...arr].sort((a, b) => a.date.localeCompare(b.date));
+      const pcts = sorted.map(e => Math.round(e.val / info.max * 100));
+      const first = pcts[0], latest = pcts[pcts.length - 1];
+      const diff = latest - first;
+      return { info, pcts, first, latest, diff };
+    })
+    .filter(Boolean);
+
+  if (!rows.length) return '';
+
+  return `
+  <div class="card mb-3">
+    <div class="card-header"><div class="card-title">📈 พัฒนาการรายวิชา</div></div>
+    <div class="card-body">
+      <div class="mocktest-trend-grid">
+        ${rows.map(r => {
+          let diffHTML;
+          if (r.pcts.length >= 2) {
+            const diffColor = r.diff > 0 ? 'var(--success)' : r.diff < 0 ? 'var(--danger)' : 'var(--text-muted)';
+            const diffLabel = r.diff > 0 ? `+${r.diff}%` : r.diff < 0 ? `${r.diff}%` : 'ไม่เปลี่ยนแปลง';
+            diffHTML = `<div class="mocktest-trend-diff" style="color:${diffColor}">${r.first}% → ${r.latest}% (${diffLabel})</div>`;
+          } else {
+            diffHTML = `<div class="mocktest-trend-diff" style="color:var(--text-muted)">สอบครั้งเดียว: ${r.first}%</div>`;
+          }
+          return `
+            <div class="mocktest-trend-label">${r.info.icon} ${r.info.name}</div>
+            ${renderMockTestTrendBars(r.pcts)}
+            ${diffHTML}
+          `;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderMockTestTrendBars(pcts) {
+  return `
+  <div class="mocktest-trend-bars">
+    ${pcts.map((p, i) => {
+      let color;
+      if (pcts.length === 1) {
+        color = p >= 70 ? 'var(--success)' : p >= 50 ? 'var(--warning)' : 'var(--danger)';
+      } else if (i === 0) {
+        color = 'var(--text-muted)';
+      } else if (i === pcts.length - 1) {
+        color = p >= pcts[0] ? 'var(--success)' : 'var(--danger)';
+      } else {
+        color = 'var(--primary)';
+      }
+      return `
+      <div class="mocktest-trend-bar-col" title="ครั้งที่ ${i + 1}: ${p}%">
+        <div class="mocktest-trend-bar-value">${p}</div>
+        <div class="mocktest-trend-bar-track">
+          <div class="mocktest-trend-bar-fill" style="height:${p}%;background:${color}"></div>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderMockTestCard(t, labelWidth) {
+  return `
+  <div class="card mb-3">
+    <div class="card-header">
+      <div class="card-title">${calThDateStr(t.date)}${t.source ? ` · ${t.source}` : ''}</div>
+      <div class="flex gap-2">
+        <button class="btn btn-ghost btn-sm" onclick="openMockTestForm('${t.id}')" title="แก้ไข">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="deleteMockTest('${t.id}')" title="ลบ">🗑️</button>
+      </div>
+    </div>
+    <div class="card-body">
+      ${renderMockTestScoreTable(t.scores, labelWidth)}
+      ${(t.files || []).length ? `
+        <div class="planner-ev-files mt-2">
+          ${t.files.map(f => `
+            <div class="planner-ev-file">
+              ${f.dataUrl.startsWith('data:image') ? `<img src="${f.dataUrl}" class="planner-ev-file-thumb">` : `<span class="planner-ev-file-icon">📄</span>`}
+              <span class="planner-ev-file-name">${f.name}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+  </div>`;
+}
+
+function renderMockTestForm() {
+  const d = state.mockTestDraft;
+  const catGroups = [
+    { label: '🧠 TGAT', cat: TCAS_DATA.tests.tgat },
+    { label: '🎯 TPAT', cat: TCAS_DATA.tests.tpat },
+    { label: '📚 A-Level', cat: TCAS_DATA.tests.alevel }
+  ];
+
+  return `
+  <div class="card mb-3">
+    <div class="card-header"><div class="card-title">${d.id ? '✏️ แก้ไขผล Mock Test' : '➕ บันทึกผล Mock Test ใหม่'}</div></div>
+    <div class="card-body">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <div class="form-group" style="flex:1;min-width:140px">
+          <label class="form-label">วันที่สอบ</label>
+          <input type="date" class="form-control" value="${d.date}" oninput="onMockTestDraftInput('date', this.value)">
+        </div>
+        <div class="form-group" style="flex:2;min-width:200px">
+          <label class="form-label">แหล่งที่มา/สถาบัน (ไม่บังคับ)</label>
+          <input type="text" class="form-control" list="mocktest-source-list" value="${(d.source || '').replace(/"/g, '&quot;')}" placeholder="เช่น สอบเอง, ติวเตอร์ ABC" oninput="onMockTestDraftInput('source', this.value)">
+          <datalist id="mocktest-source-list">
+            ${[...new Set((state.studentData.mockTests || []).map(t => t.source).filter(Boolean))].map(s => `<option value="${s.replace(/"/g, '&quot;')}">`).join('')}
+          </datalist>
+        </div>
+      </div>
+
+      ${catGroups.map(g => `
+        <div class="criteria-section-title mb-1" style="margin-top:10px">${g.label}</div>
+        <table class="score-table">
+          <tbody>
+            ${Object.entries(g.cat.subjects).map(([key, info]) => `
+              <tr>
+                <td style="font-size:0.82rem">${info.icon} ${info.name}</td>
+                <td>
+                  <input type="number" class="score-input" id="mock-score-${key}" value="${d.scores[key] || ''}" min="0" max="${info.maxScore}" step="0.5"
+                    placeholder="—" oninput="onMockTestDraftScoreInput('${key}', this.value, ${info.maxScore})">
+                  <span id="mock-err-${key}" class="score-error hidden">⚠️ เกินคะแนนเต็ม (${info.maxScore})</span>
+                </td>
+                <td class="score-max">${info.maxScore}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `).join('')}
+
+      <div class="criteria-section-title mb-1" style="margin-top:10px">📎 แนบใบคะแนน/ใบประกาศ</div>
+      <div class="planner-ev-files">
+        ${d.files.map((f, idx) => `
+          <div class="planner-ev-file">
+            ${f.dataUrl.startsWith('data:image') ? `<img src="${f.dataUrl}" class="planner-ev-file-thumb">` : `<span class="planner-ev-file-icon">📄</span>`}
+            <span class="planner-ev-file-name">${f.name}</span>
+            <button type="button" class="planner-ev-file-remove" onclick="removeMockTestDraftFile(${idx})">✕</button>
+          </div>
+        `).join('')}
+      </div>
+      <label class="btn btn-outline btn-sm planner-ev-upload-btn">
+        📎 แนบไฟล์
+        <input type="file" accept="image/*,.pdf" style="display:none" onchange="onMockTestFileSelect(this)">
+      </label>
+
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-primary btn-sm" onclick="saveMockTestDraft()">บันทึก</button>
+        <button class="btn btn-ghost btn-sm" onclick="cancelMockTestForm()">ยกเลิก</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function openMockTestForm(id) {
+  if (id) {
+    const existing = state.studentData.mockTests.find(t => t.id === id);
+    if (!existing) return;
+    state.mockTestDraft = JSON.parse(JSON.stringify(existing));
+    state.mockTestFormMode = id;
+  } else {
+    state.mockTestDraft = { id: null, date: studyLogYMD(new Date()), source: '', scores: {}, files: [] };
+    state.mockTestFormMode = 'new';
+  }
+  renderMockTestSection();
+}
+
+function cancelMockTestForm() {
+  state.mockTestDraft = null;
+  state.mockTestFormMode = null;
+  renderMockTestSection();
+}
+
+function onMockTestDraftInput(field, value) {
+  if (!state.mockTestDraft) return;
+  state.mockTestDraft[field] = value;
+}
+
+function onMockTestDraftScoreInput(key, value, max) {
+  if (!state.mockTestDraft) return;
+  const errEl = document.getElementById(`mock-err-${key}`);
+  const inputEl = document.getElementById(`mock-score-${key}`);
+
+  if (value === '' || value === null) {
+    if (errEl) errEl.classList.add('hidden');
+    if (inputEl) inputEl.classList.remove('error');
+    state.mockTestDraft.scores[key] = '';
+    return;
+  }
+
+  const val = parseFloat(value);
+  if (isNaN(val) || val < 0 || val > max) {
+    if (errEl) errEl.classList.remove('hidden');
+    if (inputEl) inputEl.classList.add('error');
+    return; // do not write an out-of-range value into the draft
+  }
+
+  if (errEl) errEl.classList.add('hidden');
+  if (inputEl) inputEl.classList.remove('error');
+  state.mockTestDraft.scores[key] = value;
+}
+
+function onMockTestFileSelect(inputEl) {
+  const file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  if (file.size > MOCK_TEST_FILE_MAX_BYTES) {
+    showToast('⚠️ ไฟล์ใหญ่เกินไป (สูงสุด ~900KB ต่อไฟล์)', 'error');
+    inputEl.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    state.mockTestDraft.files.push({ name: file.name, dataUrl: reader.result });
+    renderMockTestSection();
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeMockTestDraftFile(idx) {
+  state.mockTestDraft.files.splice(idx, 1);
+  renderMockTestSection();
+}
+
+function saveMockTestDraft() {
+  const d = state.mockTestDraft;
+  if (!d.date) {
+    showToast('⚠️ กรุณาระบุวันที่สอบ', 'error');
+    return;
+  }
+  const hasAnyScore = Object.values(d.scores).some(v => v !== '' && v != null);
+  if (!hasAnyScore) {
+    showToast('⚠️ กรุณากรอกคะแนนอย่างน้อย 1 วิชา', 'error');
+    return;
+  }
+  const subjects = getAllTestSubjects();
+  const overMax = Object.entries(d.scores).find(([key, v]) => {
+    if (v === '' || v == null) return false;
+    const info = subjects.find(s => s.key === key);
+    return info && parseFloat(v) > info.max;
+  });
+  if (overMax) {
+    showToast('⚠️ มีคะแนนเกินคะแนนเต็ม กรุณาแก้ไขก่อนบันทึก', 'error');
+    return;
+  }
+  if (d.id) {
+    const existing = state.studentData.mockTests.find(t => t.id === d.id);
+    Object.assign(existing, d);
+  } else {
+    d.id = 'mock-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    state.studentData.mockTests.push(d);
+  }
+  state.mockTestDraft = null;
+  state.mockTestFormMode = null;
+  debounceSave(200);
+  renderMockTestSection();
+}
+
+function deleteMockTest(id) {
+  if (!confirm('ต้องการลบผล Mock Test นี้ใช่หรือไม่?')) return;
+  const list = state.studentData.mockTests;
+  const idx = list.findIndex(t => t.id === id);
+  if (idx === -1) return;
+  list.splice(idx, 1);
+  debounceSave(200);
+  renderMockTestSection();
+}
+
+// ============================================================
+// MISTAKE LOG (สมุดบันทึกข้อผิดพลาด)
+// ============================================================
+function renderMistakeLogPage() {
+  renderMistakeLogSection();
+}
+
+function renderMistakeLogSection() {
+  const container = document.getElementById('mistakelog-content');
+  if (!container) return;
+
+  const log = state.studentData.mistakeLog || [];
+  const subjects = getAllTestSubjects();
+  const filter = state.mistakeLogSubjectFilter;
+  const filtered = (filter === 'all' ? log : log.filter(e => e.subject === filter))
+    .slice()
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const editingId = state.mistakeLogFormMode && state.mistakeLogFormMode !== 'new' ? state.mistakeLogFormMode : null;
+
+  const usedSubjectKeys = [...new Set(log.map(e => e.subject))];
+
+  container.innerHTML = `
+    <div class="mb-3" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-primary btn-sm" onclick="openMistakeLogForm(null)">+ บันทึกข้อผิดพลาด</button>
+      ${usedSubjectKeys.length ? `
+        <select class="form-control" style="width:auto" onchange="onMistakeLogFilterChange(this.value)">
+          <option value="all" ${filter === 'all' ? 'selected' : ''}>ทุกวิชา</option>
+          ${usedSubjectKeys.map(k => {
+            const info = subjects.find(s => s.key === k);
+            if (!info) return '';
+            return `<option value="${k}" ${filter === k ? 'selected' : ''}>${info.icon} ${info.name}</option>`;
+          }).join('')}
+        </select>
+      ` : ''}
+    </div>
+
+    ${state.mistakeLogFormMode ? renderMistakeLogForm() : ''}
+
+    ${filtered.length === 0 ? `
+      <div class="card">
+        <div class="card-body">
+          <div class="empty-state">
+            <div class="empty-state-icon">📕</div>
+            <div class="empty-state-title">${log.length === 0 ? 'ยังไม่มีบันทึกข้อผิดพลาด' : 'ไม่มีรายการในวิชานี้'}</div>
+            <div class="empty-state-desc">บันทึกข้อผิดพลาดที่เจอ พร้อมสาเหตุและเฉลยที่ถูกต้อง จะได้ไม่พลาดซ้ำ</div>
+          </div>
+        </div>
+      </div>
+    ` : filtered.filter(e => e.id !== editingId).map(renderMistakeLogCard).join('')}
+  `;
+}
+
+function onMistakeLogFilterChange(value) {
+  state.mistakeLogSubjectFilter = value;
+  renderMistakeLogSection();
+}
+
+function renderMistakeLogCard(entry) {
+  const subjects = getAllTestSubjects();
+  const info = subjects.find(s => s.key === entry.subject);
+  return `
+  <div class="card mb-3">
+    <div class="card-header">
+      <div class="card-title">${calThDateStr(entry.date)}${info ? ` · ${info.icon} ${info.name}` : ''}</div>
+      <div class="flex gap-2">
+        <button class="btn btn-ghost btn-sm" onclick="openMistakeLogForm('${entry.id}')" title="แก้ไข">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="deleteMistakeLog('${entry.id}')" title="ลบ">🗑️</button>
+      </div>
+    </div>
+    <div class="card-body">
+      ${entry.topic ? `<div class="mb-2"><strong>โจทย์/หัวข้อ:</strong> ${entry.topic}</div>` : ''}
+      ${entry.reason ? `<div class="mb-2"><strong>สาเหตุที่ผิด:</strong> ${entry.reason}</div>` : ''}
+      ${entry.correctAnswer ? `<div class="mb-2"><strong>เฉลยที่ถูกต้อง:</strong> ${entry.correctAnswer}</div>` : ''}
+      ${(entry.files || []).length ? `
+        <div class="planner-ev-files mt-2">
+          ${entry.files.map(f => `
+            <div class="planner-ev-file">
+              ${f.dataUrl.startsWith('data:image') ? `<img src="${f.dataUrl}" class="planner-ev-file-thumb">` : `<span class="planner-ev-file-icon">📄</span>`}
+              <span class="planner-ev-file-name">${f.name}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+  </div>`;
+}
+
+function renderMistakeLogForm() {
+  const d = state.mistakeLogDraft;
+  const subjects = getAllTestSubjects();
+
+  return `
+  <div class="card mb-3">
+    <div class="card-header"><div class="card-title">${d.id ? '✏️ แก้ไขบันทึกข้อผิดพลาด' : '➕ บันทึกข้อผิดพลาดใหม่'}</div></div>
+    <div class="card-body">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <div class="form-group" style="flex:1;min-width:140px">
+          <label class="form-label">วันที่</label>
+          <input type="date" class="form-control" value="${d.date}" oninput="onMistakeLogDraftInput('date', this.value)">
+        </div>
+        <div class="form-group" style="flex:2;min-width:200px">
+          <label class="form-label">วิชา</label>
+          <select class="form-control" onchange="onMistakeLogDraftInput('subject', this.value)">
+            <option value="">— เลือกวิชา —</option>
+            ${subjects.map(s => `<option value="${s.key}" ${d.subject === s.key ? 'selected' : ''}>${s.icon} ${s.name}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group mb-2">
+        <label class="form-label">โจทย์/หัวข้อที่ผิด</label>
+        <input type="text" class="form-control" value="${(d.topic || '').replace(/"/g, '&quot;')}" placeholder="เช่น โจทย์อนุพันธ์ของฟังก์ชันประกอบ" oninput="onMistakeLogDraftInput('topic', this.value)">
+      </div>
+      <div class="form-group mb-2">
+        <label class="form-label">สาเหตุที่ผิด</label>
+        <textarea class="form-control" rows="2" placeholder="เช่น จำสูตรผิด, อ่านโจทย์ไม่ครบ" oninput="onMistakeLogDraftInput('reason', this.value)">${d.reason || ''}</textarea>
+      </div>
+      <div class="form-group mb-2">
+        <label class="form-label">เฉลย/แนวคิดที่ถูกต้อง</label>
+        <textarea class="form-control" rows="2" placeholder="อธิบายวิธีทำที่ถูกต้อง" oninput="onMistakeLogDraftInput('correctAnswer', this.value)">${d.correctAnswer || ''}</textarea>
+      </div>
+
+      <div class="criteria-section-title mb-1" style="margin-top:10px">📎 แนบรูปโจทย์</div>
+      <div class="planner-ev-files">
+        ${d.files.map((f, idx) => `
+          <div class="planner-ev-file">
+            ${f.dataUrl.startsWith('data:image') ? `<img src="${f.dataUrl}" class="planner-ev-file-thumb">` : `<span class="planner-ev-file-icon">📄</span>`}
+            <span class="planner-ev-file-name">${f.name}</span>
+            <button type="button" class="planner-ev-file-remove" onclick="removeMistakeLogDraftFile(${idx})">✕</button>
+          </div>
+        `).join('')}
+      </div>
+      <label class="btn btn-outline btn-sm planner-ev-upload-btn">
+        📎 แนบไฟล์
+        <input type="file" accept="image/*,.pdf" style="display:none" onchange="onMistakeLogFileSelect(this)">
+      </label>
+
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-primary btn-sm" onclick="saveMistakeLogDraft()">บันทึก</button>
+        <button class="btn btn-ghost btn-sm" onclick="cancelMistakeLogForm()">ยกเลิก</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function openMistakeLogForm(id) {
+  if (id) {
+    const existing = state.studentData.mistakeLog.find(e => e.id === id);
+    if (!existing) return;
+    state.mistakeLogDraft = JSON.parse(JSON.stringify(existing));
+    state.mistakeLogFormMode = id;
+  } else {
+    state.mistakeLogDraft = { id: null, date: studyLogYMD(new Date()), subject: '', topic: '', reason: '', correctAnswer: '', files: [] };
+    state.mistakeLogFormMode = 'new';
+  }
+  renderMistakeLogSection();
+}
+
+function cancelMistakeLogForm() {
+  state.mistakeLogDraft = null;
+  state.mistakeLogFormMode = null;
+  renderMistakeLogSection();
+}
+
+function onMistakeLogDraftInput(field, value) {
+  if (!state.mistakeLogDraft) return;
+  state.mistakeLogDraft[field] = value;
+}
+
+function onMistakeLogFileSelect(inputEl) {
+  const file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  if (file.size > MOCK_TEST_FILE_MAX_BYTES) {
+    showToast('⚠️ ไฟล์ใหญ่เกินไป (สูงสุด ~900KB ต่อไฟล์)', 'error');
+    inputEl.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    state.mistakeLogDraft.files.push({ name: file.name, dataUrl: reader.result });
+    renderMistakeLogSection();
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeMistakeLogDraftFile(idx) {
+  state.mistakeLogDraft.files.splice(idx, 1);
+  renderMistakeLogSection();
+}
+
+function saveMistakeLogDraft() {
+  const d = state.mistakeLogDraft;
+  if (!d.date) {
+    showToast('⚠️ กรุณาระบุวันที่', 'error');
+    return;
+  }
+  if (!d.subject) {
+    showToast('⚠️ กรุณาเลือกวิชา', 'error');
+    return;
+  }
+  if (!d.topic.trim() && !d.reason.trim()) {
+    showToast('⚠️ กรุณาระบุโจทย์/หัวข้อ หรือสาเหตุที่ผิดอย่างน้อย 1 อย่าง', 'error');
+    return;
+  }
+  if (d.id) {
+    const existing = state.studentData.mistakeLog.find(e => e.id === d.id);
+    Object.assign(existing, d);
+  } else {
+    d.id = 'mistake-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    state.studentData.mistakeLog.push(d);
+  }
+  state.mistakeLogDraft = null;
+  state.mistakeLogFormMode = null;
+  debounceSave(200);
+  renderMistakeLogSection();
+}
+
+function deleteMistakeLog(id) {
+  if (!confirm('ต้องการลบบันทึกนี้ใช่หรือไม่?')) return;
+  const list = state.studentData.mistakeLog;
+  const idx = list.findIndex(e => e.id === id);
+  if (idx === -1) return;
+  list.splice(idx, 1);
+  debounceSave(200);
+  renderMistakeLogSection();
 }
 
 function onScoreInput(key, value, max) {
@@ -1974,6 +2616,10 @@ function showProgramDetail(programId) {
 
     <div class="criteria-section">
       <div class="criteria-section-title">เกณฑ์คะแนน (รอบ 3 Admission)</div>
+      <div class="warning-box mb-2" style="font-size:0.78rem">
+        <span>⚠️</span>
+        <div>เกณฑ์รอบ Admission ปีการศึกษา 2570 ยังไม่มีการประกาศอย่างเป็นทางการจากมหาวิทยาลัย ตัวเลขนี้เป็นค่าอ้างอิงเบื้องต้น จะปรับปรุงให้ตรงตามประกาศจริงเมื่อมหาวิทยาลัยเผยแพร่ (คาดว่าใกล้ พ.ค. 2570)</div>
+      </div>
       ${Object.keys(criteria).length === 0 ? '<p style="color:var(--text-muted);font-size:0.85rem">ตรวจสอบเกณฑ์จากมหาวิทยาลัยโดยตรง</p>' : ''}
       ${Object.entries(criteria).map(([key, weight]) => {
         const testInfo = getTestInfo(key);
@@ -2065,20 +2711,20 @@ function renderGuide() {
           <div>
             <div class="section-title" style="font-size:0.88rem">🧠 TGAT (Thai General Aptitude Test)</div>
             <div style="font-size:0.82rem;color:var(--text-secondary);line-height:1.8">
-              <div>• <strong>TGAT1</strong> ภาษาอังกฤษ (150 คะแนน)</div>
-              <div>• <strong>TGAT2</strong> การคิดวิเคราะห์ (150 คะแนน)</div>
-              <div>• <strong>TGAT3</strong> สมรรถนะอนาคต (150 คะแนน)</div>
-              <div style="margin-top:6px;color:var(--text-muted)">รวม 450 คะแนน</div>
+              <div>• <strong>TGAT1</strong> ภาษาอังกฤษ (100 คะแนน)</div>
+              <div>• <strong>TGAT2</strong> การคิดวิเคราะห์ (100 คะแนน)</div>
+              <div>• <strong>TGAT3</strong> สมรรถนะอนาคต (100 คะแนน)</div>
+              <div style="margin-top:6px;color:var(--text-muted)">รวม 300 คะแนน</div>
             </div>
           </div>
           <div>
             <div class="section-title" style="font-size:0.88rem">🎯 TPAT (Thai Professional Aptitude Test)</div>
             <div style="font-size:0.82rem;color:var(--text-secondary);line-height:1.8">
-              <div>• <strong>TPAT1</strong> วิชาเฉพาะแพทย์ (300 คะแนน)</div>
-              <div>• <strong>TPAT2</strong> ด้านศิลปะ (100 คะแนน)</div>
-              <div>• <strong>TPAT3</strong> สถาปัตยกรรม (100 คะแนน)</div>
-              <div>• <strong>TPAT4</strong> ครุศาสตร์ (100 คะแนน)</div>
-              <div>• <strong>TPAT5</strong> สาธารณสุข (100 คะแนน)</div>
+              <div>• <strong>TPAT1</strong> วิชาเฉพาะแพทย์ กสพท (300 คะแนน)</div>
+              <div>• <strong>TPAT2</strong> ศิลปกรรมศาสตร์ (100 คะแนน)</div>
+              <div>• <strong>TPAT3</strong> วิทย์-เทคโน-วิศวะ (100 คะแนน)</div>
+              <div>• <strong>TPAT4</strong> สถาปัตยกรรม (100 คะแนน)</div>
+              <div>• <strong>TPAT5</strong> ครุศาสตร์/ศึกษาศาสตร์ (100 คะแนน)</div>
             </div>
           </div>
           <div>
@@ -2098,20 +2744,27 @@ function renderGuide() {
     <div class="card mt-3">
       <div class="card-header"><div class="card-title">📅 ปฏิทิน TCAS70 (ปีการศึกษา 2570)</div></div>
       <div class="card-body">
+        <img src="images/tcas70-guide-summary-table.jpg" alt="ปฏิทิน TCAS70 สรุปภาพรวม 4 รอบ" class="cal-hero-img">
+        <img src="images/tcas70-guide-tgat-tpat.jpg" alt="ปฏิทินการสมัครสอบและปฏิทินการสอบ TGAT/TPAT" class="cal-hero-img">
+        <img src="images/tcas70-guide-alevel.jpg" alt="ปฏิทินการสมัครสอบและปฏิทินการสอบ A-Level" class="cal-hero-img">
+        <div class="criteria-section-title mb-2 mt-3">ตารางสรุป</div>
         <table class="score-table">
           <thead><tr><th>กิจกรรม</th><th>ช่วงเวลา (โดยประมาณ)</th></tr></thead>
           <tbody>
-            <tr><td>สอบ TGAT/TPAT ครั้งที่ 1</td><td>ธันวาคม 2569</td></tr>
-            <tr><td>สอบ A-Level ครั้งที่ 1</td><td>ธันวาคม 2569 – มกราคม 2570</td></tr>
-            <tr><td>รอบ 1 Portfolio เปิดรับสมัคร</td><td>ธันวาคม 2569 – มกราคม 2570</td></tr>
-            <tr><td>รอบ 1 ประกาศผล</td><td>กุมภาพันธ์ 2570</td></tr>
-            <tr><td>สอบ TGAT/TPAT ครั้งที่ 2 (ซ่อม)</td><td>มีนาคม 2570</td></tr>
-            <tr><td>รอบ 2 โควตา เปิดรับสมัคร</td><td>กุมภาพันธ์ – มีนาคม 2570</td></tr>
-            <tr><td>รอบ 2 ประกาศผล</td><td>เมษายน 2570</td></tr>
-            <tr><td>สอบ A-Level ครั้งที่ 2</td><td>มีนาคม – เมษายน 2570</td></tr>
-            <tr><td>รอบ 3 Admission เปิดรับสมัคร</td><td>เมษายน 2570</td></tr>
-            <tr><td>รอบ 3 ประกาศผล</td><td>พฤษภาคม 2570</td></tr>
-            <tr><td>รอบ 4 รับตรงอิสระ</td><td>พฤษภาคม – มิถุนายน 2570</td></tr>
+            <tr><td>เปิดลงทะเบียน student.mytcas.com</td><td>15 กรกฎาคม 2569</td></tr>
+            <tr><td>รอบ 1 Portfolio เปิดรับสมัคร</td><td>15 สิงหาคม 2569 เป็นต้นไป (ตามที่มหาวิทยาลัยกำหนด)</td></tr>
+            <tr><td>สมัครสอบ TGAT/TPAT</td><td>4–12 พฤศจิกายน 2569</td></tr>
+            <tr><td>สมัครสอบ A-Level</td><td>14–22 มกราคม 2570</td></tr>
+            <tr><td>สอบ TGAT + TPAT2/3/4/5</td><td>30 มกราคม – 1 กุมภาพันธ์ 2570</td></tr>
+            <tr><td>สอบ TPAT1 (กสพท)</td><td>13 กุมภาพันธ์ 2570</td></tr>
+            <tr><td>สอบ A-Level</td><td>13–15 มีนาคม 2570</td></tr>
+            <tr><td>รอบ 1 ประกาศผล/ยืนยันสิทธิ์</td><td>10–11 มีนาคม 2570</td></tr>
+            <tr><td>รอบ 2 โควตา เปิดรับสมัคร</td><td>13 มีนาคม 2570 เป็นต้นไป</td></tr>
+            <tr><td>ประกาศผลคะแนน A-Level</td><td>20 เมษายน 2570</td></tr>
+            <tr><td>รอบ 2 ประกาศผล/ยืนยันสิทธิ์</td><td>3–4 พฤษภาคม 2570</td></tr>
+            <tr><td>รอบ 3 Admission เปิดรับสมัคร</td><td>7–11 พฤษภาคม 2570</td></tr>
+            <tr><td>รอบ 3 ประกาศผล/ยืนยันสิทธิ์</td><td>22–23 พฤษภาคม 2570</td></tr>
+            <tr><td>รอบ 4 รับตรงอิสระ</td><td>29 พฤษภาคม – 15 มิถุนายน 2570</td></tr>
           </tbody>
         </table>
         <div class="info-box mt-3">
@@ -2121,6 +2774,718 @@ function renderGuide() {
       </div>
     </div>
   `;
+}
+
+// ============================================================
+// MY TCAS PLANNER
+// ============================================================
+function renderPlanner() {
+  const container = document.getElementById('planner-content');
+  if (!container) return;
+
+  const sd = state.studentData;
+  if (!sd.planner) sd.planner = { roundPlans: { round1:[], round2:[], round3:[], round4:[] }, completedEvents: {}, eventNotes: {}, selfNote: '' };
+  if (!sd.planner.eventNotes) sd.planner.eventNotes = {};
+  if (!sd.planner.roundPlans) sd.planner.roundPlans = { round1:[], round2:[], round3:[], round4:[] };
+  ['round1','round2','round3','round4'].forEach(k => {
+    if (!Array.isArray(sd.planner.roundPlans[k])) sd.planner.roundPlans[k] = [];
+  });
+  const planner = sd.planner;
+  const prefs = getPreferences();
+
+  container.innerHTML = `
+    ${renderPlannerTargets(prefs)}
+    ${renderPlannerPortfolio(prefs)}
+    ${renderPlannerScoreGap(prefs)}
+    ${renderPlannerCalendar(planner)}
+    ${renderPlannerRounds(planner, prefs)}
+    ${renderPlannerContacts()}
+    ${renderPlannerNote(planner)}
+  `;
+}
+
+function renderPlannerTargets(prefs) {
+  if (!prefs.length) {
+    return `
+    <div class="card">
+      <div class="card-header"><div class="card-title">🎯 เป้าหมายของฉัน</div></div>
+      <div class="card-body">
+        <div class="empty-state">
+          <div class="empty-state-icon">🎓</div>
+          <div class="empty-state-title">ยังไม่ได้เลือกคณะเป้าหมาย</div>
+          <div class="empty-state-desc">ไปที่หน้าโปรไฟล์เพื่อเลือกคณะที่สนใจสูงสุด 10 อันดับ</div>
+        </div>
+        <button class="btn btn-primary btn-sm mt-2" onclick="navigate('profile')">ไปหน้าโปรไฟล์ →</button>
+      </div>
+    </div>`;
+  }
+  const rows = prefs.map((pid, i) => {
+    const prog = TCAS_DATA.programs.find(p => p.id === pid);
+    if (!prog) return '';
+    const uni = getUniversityById(prog.universityId);
+    return `
+      <div class="pref-item">
+        <div class="pref-rank" style="background:${i < 3 ? ['#F0A500','#94A3B8','#CD7F32'][i] : 'var(--surface-2)'};color:${i < 3 ? 'white' : 'var(--text-muted)'}">${i + 1}</div>
+        <div class="pref-item-body">
+          <div class="pref-item-header"><strong>${prog.program}</strong></div>
+          <div style="font-size:0.8rem;color:var(--text-muted)">${uni.shortName} · ${prog.faculty}</div>
+        </div>
+      </div>`;
+  }).join('');
+  return `
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🎯 เป้าหมายของฉัน <span style="font-weight:400;font-size:0.78rem;color:var(--text-muted)">(${prefs.length} คณะ)</span></div>
+      <button class="btn btn-outline btn-sm" onclick="navigate('profile')">แก้ไข</button>
+    </div>
+    <div class="card-body">
+      <div class="pref-list">${rows}</div>
+    </div>
+  </div>`;
+}
+
+function renderPlannerPortfolio(prefs) {
+  if (!prefs.length) return '';
+  const eligible = prefs.filter(pid => {
+    const p = TCAS_DATA.programs.find(x => x.id === pid);
+    return p && Array.isArray(p.rounds) && p.rounds.includes(1);
+  });
+  if (!eligible.length) {
+    return `
+    <div class="card mt-3">
+      <div class="card-header"><div class="card-title">📁 ความพร้อมรอบ Portfolio</div></div>
+      <div class="card-body">
+        <div class="empty-state">
+          <div class="empty-state-icon">📁</div>
+          <div class="empty-state-title">ไม่มีคณะเป้าหมายที่เปิดรอบ Portfolio</div>
+          <div class="empty-state-desc">คณะทั้ง ${prefs.length} ที่คุณเลือกไม่มีคณะที่เปิดรับรอบ 1 Portfolio</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  const selectedId = state.plannerPortfolioTargetId && eligible.includes(state.plannerPortfolioTargetId) ? state.plannerPortfolioTargetId : eligible[0];
+  const program = TCAS_DATA.programs.find(p => p.id === selectedId);
+  const uni = getUniversityById(program.universityId);
+  const selectedRank = prefs.indexOf(selectedId);
+
+  const options = eligible.map(pid => {
+    const p = TCAS_DATA.programs.find(x => x.id === pid);
+    const rank = prefs.indexOf(pid);
+    return `<option value="${pid}" ${pid === selectedId ? 'selected' : ''}>อันดับ ${rank + 1} — ${p.program} (${getUniversityById(p.universityId).shortName})</option>`;
+  }).join('');
+
+  const gpa = parseFloat(state.studentData.gpa.cumulative) || 0;
+  const gpaPass = gpa > 0 && gpa >= program.minGPA;
+
+  const portfolioSystemLabel = {
+    tcasfolio: { text: 'รับเฉพาะผ่านระบบ TCASFolio', cls: 'badge-primary' },
+    independent: { text: 'รับพอร์ตอิสระ (ไม่ผ่าน TCASFolio)', cls: 'badge-purple' },
+    both: { text: 'รับทั้ง TCASFolio และพอร์ตอิสระ', cls: 'badge-success' },
+    unconfirmed: { text: 'ยังไม่ยืนยัน — ตรวจสอบกับเว็บคณะ', cls: 'badge-gray' }
+  }[uni.portfolioSystem || 'unconfirmed'];
+
+  const portfolioCount = ['camps', 'activities', 'awards', 'competitions', 'volunteer']
+    .reduce((sum, k) => sum + ((state.studentData.portfolio && state.studentData.portfolio[k]) || []).length, 0);
+
+  return `
+  <div class="card mt-3">
+    <div class="card-header">
+      <div class="card-title">📁 ความพร้อมรอบ Portfolio</div>
+    </div>
+    <div class="card-body">
+      <div class="form-group">
+        <label class="form-label">ดูข้อมูลของคณะ</label>
+        <select class="form-control" onchange="onPlannerPortfolioTargetChange(this.value)">${options}</select>
+      </div>
+      <div style="font-size:0.78rem;color:var(--text-muted);margin:10px 0">เทียบกับอันดับ ${selectedRank + 1}: <strong>${program.program}</strong> (${uni.shortName})</div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+        <span class="badge ${gpa > 0 ? (gpaPass ? 'badge-success' : 'badge-danger') : 'badge-gray'}">${gpa > 0 ? `GPAX ${gpa.toFixed(2)} ${gpaPass ? '✓ ผ่านเกณฑ์' : '✗ ต่ำกว่าเกณฑ์'} (ต้องการ ${program.minGPA.toFixed(2)})` : `ยังไม่กรอก GPAX (ต้องการ ${program.minGPA.toFixed(2)})`}</span>
+        <span class="badge ${portfolioSystemLabel.cls}">${portfolioSystemLabel.text}</span>
+      </div>
+
+      ${program.specialReq.length ? `
+        <div class="criteria-section-title mb-2">ข้อกำหนดพิเศษของคณะนี้</div>
+        <ul class="plain-list">${program.specialReq.map(r => `<li>📌 ${r}</li>`).join('')}</ul>
+      ` : ''}
+
+      <div style="font-size:0.82rem;color:var(--text-muted);margin-top:10px">ผลงาน/กิจกรรมที่บันทึกไว้ในโปรไฟล์: <strong>${portfolioCount} รายการ</strong></div>
+      ${portfolioCount === 0 ? `<button class="btn btn-outline btn-sm mt-2" onclick="navigate('portfolio')">ไปบันทึกผลงาน →</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function onPlannerPortfolioTargetChange(programId) {
+  state.plannerPortfolioTargetId = programId;
+  renderPlanner();
+}
+
+function renderPlannerScoreGap(prefs) {
+  if (!prefs.length) return '';
+  const selectedId = state.plannerTargetId && prefs.includes(state.plannerTargetId) ? state.plannerTargetId : prefs[0];
+  const selectedIdx = prefs.indexOf(selectedId);
+  const program = TCAS_DATA.programs.find(p => p.id === selectedId);
+  if (!program) return '';
+
+  const match = calculateMatchScore(program, state.studentData);
+  const uni = getUniversityById(program.universityId);
+  const color = match.score >= 70 ? 'var(--success)' : match.score >= 45 ? 'var(--warning)' : 'var(--danger)';
+
+  const options = prefs.map((pid, i) => {
+    const p = TCAS_DATA.programs.find(x => x.id === pid);
+    if (!p) return '';
+    return `<option value="${pid}" ${pid === selectedId ? 'selected' : ''}>อันดับ ${i + 1} — ${p.program} (${getUniversityById(p.universityId).shortName})</option>`;
+  }).join('');
+
+  return `
+  <div class="card mt-3">
+    <div class="card-header">
+      <div class="card-title">📊 คะแนนที่ต้องเตรียม</div>
+    </div>
+    <div class="card-body">
+      <div class="form-group">
+        <label class="form-label">ดูข้อมูลของคณะ</label>
+        <select class="form-control" onchange="onPlannerTargetChange(this.value)">${options}</select>
+      </div>
+      <div style="font-size:0.78rem;color:var(--text-muted);margin:10px 0">เทียบกับอันดับ ${selectedIdx + 1}: <strong>${program.program}</strong> (${uni.shortName})</div>
+      <div class="warning-box mb-2" style="font-size:0.78rem">
+        <span>⚠️</span>
+        <div>เกณฑ์รอบ Admission ปีการศึกษา 2570 ยังไม่มีการประกาศอย่างเป็นทางการจากมหาวิทยาลัย ตัวเลขนี้เป็นค่าอ้างอิงเบื้องต้น จะปรับปรุงให้ตรงตามประกาศจริงเมื่อมหาวิทยาลัยเผยแพร่ (คาดว่าใกล้ พ.ค. 2570)</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <div style="font-size:1.8rem;font-weight:800;color:${color}">${match.score}%</div>
+        <div style="font-size:0.82rem;color:var(--text-muted)">ความพร้อมโดยประมาณ (รอบ Admission)</div>
+      </div>
+      ${match.details.length ? `<div class="criteria-section-title mb-2">มีคะแนนแล้ว</div><ul class="plain-list">${match.details.map(d => `<li>✅ ${d}</li>`).join('')}</ul>` : ''}
+      ${match.issues.length ? `<div class="criteria-section-title mb-2 mt-2">ยังขาด</div><ul class="plain-list">${match.issues.map(d => `<li>⚠️ ${d}</li>`).join('')}</ul>` : ''}
+      <button class="btn btn-outline btn-sm mt-2" onclick="navigate('scores')">ไปกรอกคะแนน →</button>
+    </div>
+  </div>`;
+}
+
+function onPlannerTargetChange(programId) {
+  state.plannerTargetId = programId;
+  renderPlanner();
+}
+
+// ---- Monthly calendar with per-event notes + attachments ----
+const PLANNER_FILE_MAX_BYTES = 900 * 1024; // ~900KB per file (localStorage-friendly)
+
+function renderPlannerCalendar(planner) {
+  const groups = {};
+  TCAS70_EVENTS.forEach(ev => {
+    const s = new Date(ev.start + 'T00:00:00');
+    const key = `${s.getFullYear()}-${String(s.getMonth()).padStart(2, '0')}`;
+    if (!groups[key]) groups[key] = { year: s.getFullYear(), month: s.getMonth(), events: [] };
+    groups[key].events.push(ev);
+  });
+  const keys = Object.keys(groups).sort();
+  const completed = planner.completedEvents || {};
+  const notes = planner.eventNotes || {};
+
+  const monthBlocks = keys.map(key => {
+    const g = groups[key];
+    const label = `${TH_MONTHS_LONG[g.month]} ${g.year + 543}`;
+    const evRows = g.events.map(ev => renderPlannerEventRow(ev, !!completed[ev.id], notes[ev.id])).join('');
+    return `
+    <div class="planner-month-block">
+      <div class="planner-month-label">${label}</div>
+      ${evRows}
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="card mt-3">
+    <div class="card-header"><div class="card-title">🗓️ ภารกิจรายเดือนของฉัน</div></div>
+    <div class="card-body">
+      <div class="info-box mb-3"><span>ℹ️</span><span>ดึงกำหนดการจากปฏิทิน TCAS70 มาให้อัตโนมัติ ติ๊กเมื่อทำเสร็จแล้ว กดไอคอน 📝 เพื่อบันทึกรายละเอียดหรือแนบหลักฐาน</span></div>
+      ${monthBlocks}
+    </div>
+  </div>`;
+}
+
+function renderPlannerEventRow(ev, done, noteData) {
+  const expanded = state.plannerExpandedEvents.has(ev.id);
+  const nd = noteData || { note: '', files: [] };
+  const files = nd.files || [];
+  const hasDetail = !!nd.note || files.length > 0;
+
+  const detailPanel = expanded ? `
+    <div class="planner-ev-detail">
+      <textarea class="form-control" rows="2" placeholder="รายละเอียดเพิ่มเติม เช่น สมัครวิชา TPAT3/TPAT4, สนามสอบที่ไหน..."
+        oninput="onPlannerEventNoteInput('${ev.id}', this.value)">${nd.note || ''}</textarea>
+      <div class="planner-ev-files">
+        ${files.map((f, i) => `
+          <div class="planner-ev-file">
+            ${f.dataUrl.startsWith('data:image') ? `<img src="${f.dataUrl}" class="planner-ev-file-thumb">` : `<span class="planner-ev-file-icon">📄</span>`}
+            <span class="planner-ev-file-name">${f.name}</span>
+            <button type="button" class="planner-ev-file-remove" onclick="removePlannerEventFile('${ev.id}', ${i})">✕</button>
+          </div>`).join('')}
+      </div>
+      <label class="btn btn-outline btn-sm planner-ev-upload-btn">
+        📎 แนบหลักฐาน (บัตรสอบ/ใบสมัคร)
+        <input type="file" accept="image/*,application/pdf" style="display:none" onchange="onPlannerEventFileSelect('${ev.id}', this)">
+      </label>
+    </div>` : '';
+
+  return `
+    <div class="planner-ev-wrap">
+      <label class="planner-ev-row${done ? ' done' : ''}">
+        <input type="checkbox" ${done ? 'checked' : ''} onchange="togglePlannerEvent('${ev.id}')">
+        <span class="planner-ev-icon">${ev.icon}</span>
+        <span class="planner-ev-body">
+          <span class="planner-ev-title">${ev.title}</span>
+          <span class="planner-ev-date">📅 ${calThDateRangeWithDay(ev.start, ev.end)}</span>
+        </span>
+        <button type="button" class="planner-ev-note-btn${hasDetail ? ' has-detail' : ''}" onclick="event.preventDefault(); togglePlannerEventDetail('${ev.id}')" title="บันทึกรายละเอียด/แนบหลักฐาน">📝</button>
+      </label>
+      ${detailPanel}
+    </div>`;
+}
+
+function togglePlannerEvent(eventId) {
+  const ce = state.studentData.planner.completedEvents;
+  ce[eventId] = !ce[eventId];
+  debounceSave();
+  renderPlanner();
+}
+
+function togglePlannerEventDetail(eventId) {
+  if (state.plannerExpandedEvents.has(eventId)) {
+    state.plannerExpandedEvents.delete(eventId);
+  } else {
+    state.plannerExpandedEvents.add(eventId);
+  }
+  renderPlanner();
+}
+
+function _getEventNoteEntry(eventId) {
+  const en = state.studentData.planner.eventNotes;
+  if (!en[eventId]) en[eventId] = { note: '', files: [] };
+  return en[eventId];
+}
+
+function onPlannerEventNoteInput(eventId, value) {
+  _getEventNoteEntry(eventId).note = value;
+  debounceSave();
+}
+
+function onPlannerEventFileSelect(eventId, inputEl) {
+  const file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  if (file.size > PLANNER_FILE_MAX_BYTES) {
+    showToast('⚠️ ไฟล์ใหญ่เกินไป (สูงสุด ~900KB ต่อไฟล์)', 'error');
+    inputEl.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const entry = _getEventNoteEntry(eventId);
+    entry.files.push({ name: file.name, dataUrl: reader.result });
+    debounceSave(200);
+    renderPlanner();
+  };
+  reader.readAsDataURL(file);
+}
+
+function removePlannerEventFile(eventId, fileIdx) {
+  const entry = _getEventNoteEntry(eventId);
+  entry.files.splice(fileIdx, 1);
+  debounceSave(200);
+  renderPlanner();
+}
+
+function renderPlannerRounds(planner, prefs) {
+  const rp = planner.roundPlans || {};
+  const rounds = [
+    { key: 'round1', label: 'รอบ 1 Portfolio', color: '#6366F1' },
+    { key: 'round2', label: 'รอบ 2 โควตา', color: '#10B981' },
+    { key: 'round3', label: 'รอบ 3 Admission', color: '#F59E0B' },
+    { key: 'round4', label: 'รอบ 4 รับตรงอิสระ', color: '#EF4444' },
+  ];
+
+  if (!prefs.length) {
+    return `
+    <div class="card mt-3">
+      <div class="card-header"><div class="card-title">✅ รอบที่วางแผนจะสมัคร</div></div>
+      <div class="card-body">
+        <div class="empty-state">
+          <div class="empty-state-icon">🎓</div>
+          <div class="empty-state-title">ยังไม่ได้เลือกคณะเป้าหมาย</div>
+          <div class="empty-state-desc">ไปที่หน้าโปรไฟล์เพื่อเลือกคณะที่สนใจก่อน จึงจะวางแผนรอบที่จะสมัครได้</div>
+        </div>
+        <button class="btn btn-primary btn-sm mt-2" onclick="navigate('profile')">ไปหน้าโปรไฟล์ →</button>
+      </div>
+    </div>`;
+  }
+
+  const progName = pid => {
+    const p = TCAS_DATA.programs.find(x => x.id === pid);
+    if (!p) return null;
+    const rank = prefs.indexOf(pid);
+    const uni = getUniversityById(p.universityId);
+    return `${rank >= 0 ? `อันดับ ${rank + 1} — ` : ''}${p.program} (${uni.shortName})`;
+  };
+
+  return `
+  <div class="card mt-3">
+    <div class="card-header"><div class="card-title">✅ รอบที่วางแผนจะสมัคร</div></div>
+    <div class="card-body">
+      ${rounds.map(r => {
+        const chosen = (rp[r.key] || []).filter(pid => TCAS_DATA.programs.find(p => p.id === pid));
+        const available = prefs.filter(pid => !chosen.includes(pid));
+        const chips = chosen.map(pid => `
+          <div class="planner-round-chip">
+            <span>${progName(pid)}</span>
+            <button type="button" class="planner-round-chip-remove" onclick="onPlannerRoundRemove('${r.key}', '${pid}')">✕</button>
+          </div>`).join('');
+        const options = available.map(pid => `<option value="${pid}">${progName(pid)}</option>`).join('');
+        return `
+        <div class="form-group">
+          <label class="form-label" style="color:${r.color}">${r.label}</label>
+          ${chips ? `<div class="planner-round-chips">${chips}</div>` : ''}
+          ${available.length ? `
+            <select class="form-control" onchange="onPlannerRoundAdd('${r.key}', this.value); this.value='';">
+              <option value="">+ เพิ่มคณะที่จะยื่นในรอบนี้</option>
+              ${options}
+            </select>` : `<div style="font-size:0.78rem;color:var(--text-muted)">เลือกครบทุกคณะเป้าหมายแล้ว</div>`}
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function onPlannerRoundAdd(key, programId) {
+  if (!programId) return;
+  const arr = state.studentData.planner.roundPlans[key];
+  if (!arr.includes(programId)) arr.push(programId);
+  debounceSave(200);
+  renderPlanner();
+}
+
+function onPlannerRoundRemove(key, programId) {
+  const arr = state.studentData.planner.roundPlans[key];
+  const idx = arr.indexOf(programId);
+  if (idx !== -1) arr.splice(idx, 1);
+  debounceSave(200);
+  renderPlanner();
+}
+
+function renderPlannerContacts() {
+  return `
+  <div class="card mt-3">
+    <div class="card-header"><div class="card-title">🤝 คนที่ช่วยฉันได้</div></div>
+    <div class="card-body">
+      <ul class="plain-list">
+        <li>👩‍🏫 ครูแนะแนว ม.6 — อาจารย์สุจิรดา ศรีจารุธรรม (ห้องแนะแนว โรงเรียนโพธิสารพิทยากร)</li>
+        <li>🏫 ครูหัวหน้าแผนการเรียน — สอบถามได้ตามแผนการเรียนที่สังกัด</li>
+        <li>📱 TCAS70: Student Advisor for Potisarnpittayakorn School - แอปพลิเคชั่นที่ช่วยติดตามความพร้อม และวางแผนเส้นทางสู่มหาวิทยาลัยสำหรับเด็กโพธิสาร'69</li>
+      </ul>
+    </div>
+  </div>`;
+}
+
+function renderPlannerNote(planner) {
+  return `
+  <div class="card mt-3 mb-4">
+    <div class="card-header"><div class="card-title">📝 บันทึกถึงตัวเอง</div></div>
+    <div class="card-body">
+      <textarea class="form-control" rows="4" placeholder="เขียนอะไรก็ได้ถึงตัวเองในอนาคต..." oninput="onPlannerNoteInput(this.value)">${planner.selfNote || ''}</textarea>
+    </div>
+  </div>`;
+}
+
+function onPlannerNoteInput(value) {
+  state.studentData.planner.selfNote = value;
+  debounceSave();
+}
+
+// ============================================================
+// STUDY LOG (ตารางอ่านหนังสือ) — weekly calendar grid
+// ============================================================
+const STUDY_TIME_BLOCKS = [
+  { key: 'morning',   label: 'เช้า', range: '06:00–12:00' },
+  { key: 'afternoon', label: 'บ่าย', range: '12:00–16:00' },
+  { key: 'evening',   label: 'เย็น', range: '16:00–19:00' },
+  { key: 'night',     label: 'ค่ำ',  range: '19:00–24:00' },
+];
+
+// Local YYYY-MM-DD (never use toISOString() here — it converts to UTC and
+// shifts the date back a day in GMT+7, which is exactly the bug this caused).
+function studyLogYMD(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function studyLogWeekStart(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay(); // 0=อาทิตย์..6=เสาร์
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day)); // เริ่มวันจันทร์
+  return studyLogYMD(d);
+}
+
+function renderStudyLog() {
+  const container = document.getElementById('studylog-content');
+  if (!container) return;
+
+  const sd = state.studentData;
+  if (!sd.planner) sd.planner = {};
+  if (!Array.isArray(sd.planner.studyLog)) sd.planner.studyLog = [];
+  const log = sd.planner.studyLog;
+
+  if (!state.studyLogWeekStart) state.studyLogWeekStart = studyLogWeekStart(studyLogYMD(new Date()));
+  const weekStart = state.studyLogWeekStart;
+
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart + 'T00:00:00');
+    d.setDate(d.getDate() + i);
+    days.push(studyLogYMD(d));
+  }
+  const weekEnd = days[6];
+  const today = studyLogYMD(new Date());
+
+  const subjects = [...new Set(log.map(e => e.subject).filter(Boolean))].sort();
+  const entriesFor = (date, block) => log.filter(e => e.date === date && (e.block || 'morning') === block);
+
+  container.innerHTML = `
+    <datalist id="studylog-subject-list">${subjects.map(s => `<option value="${s}">`).join('')}</datalist>
+
+    <div class="card">
+      <div class="card-body" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="studyLogNavWeek(-1)">‹ สัปดาห์ก่อนหน้า</button>
+        <div style="font-weight:700;min-width:180px;text-align:center">${calThDateRange(weekStart, weekEnd)}</div>
+        <button class="btn btn-outline btn-sm" onclick="studyLogNavWeek(1)">สัปดาห์ถัดไป ›</button>
+        <button class="btn btn-ghost btn-sm" onclick="studyLogGoToday()">สัปดาห์นี้</button>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+          <label class="form-label" style="margin:0;white-space:nowrap">ไปสัปดาห์ที่มี:</label>
+          <input type="date" class="form-control" style="width:auto" value="${weekStart}" onchange="studyLogJumpToDate(this.value)">
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-body" style="overflow-x:auto">
+        <div class="studylog-grid">
+          <div class="studylog-grid-corner"></div>
+          ${STUDY_TIME_BLOCKS.map(block => `<div class="studylog-block-head">${block.label}<div class="studylog-block-range">${block.range}</div></div>`).join('')}
+          ${days.map(d => {
+            const dt = new Date(d + 'T00:00:00');
+            const isToday = d === today;
+            const dayEvents = getStudyLogDayEvents(d);
+            return `
+              <div class="studylog-day-label${isToday ? ' today' : ''}">
+                <div>${TH_DAYS_SHORT[dt.getDay()]} ${dt.getDate()}/${dt.getMonth() + 1}</div>
+                ${dayEvents.map(ev => `<div class="studylog-day-event" style="background:${ev.color}30;color:${ev.color}" title="${ev.title}">${ev.icon} ${ev.short || ev.title}</div>`).join('')}
+              </div>
+              ${STUDY_TIME_BLOCKS.map(block => renderStudyLogCell(d, block.key, entriesFor(d, block.key))).join('')}
+            `;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+
+    ${renderStudyLogSummary(log)}
+  `;
+}
+
+function renderStudyLogSummary(log) {
+  if (!log.length) return '';
+
+  const today = studyLogYMD(new Date());
+
+  const bySubject = {};
+  log.forEach(e => {
+    if (!bySubject[e.subject]) bySubject[e.subject] = { done: [], planned: [] };
+    (e.done ? bySubject[e.subject].done : bySubject[e.subject].planned).push(e);
+  });
+  const subjects = Object.keys(bySubject).sort();
+
+  const itemsHTML = (entries, checkOverdue) => entries
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(e => {
+      const overdue = checkOverdue && e.date < today;
+      return `<li${overdue ? ' class="overdue"' : ''}>${e.topic || '(ไม่ระบุบท)'}<span class="studylog-summary-date">${calThDateStr(e.date)}${overdue ? ' · เลยกำหนด' : ''}</span></li>`;
+    })
+    .join('');
+
+  return `
+  <div class="card mt-3">
+    <div class="card-header"><div class="card-title">📊 สรุปภาพรวมการอ่านหนังสือ</div></div>
+    <div class="card-body">
+      <div class="studylog-summary-grid">
+        ${subjects.map(subj => {
+          const { done, planned } = bySubject[subj];
+          const total = done.length + planned.length;
+          const pct = total ? Math.round(done.length / total * 100) : 0;
+          const overdueCount = planned.filter(e => e.date < today).length;
+          return `
+          <div class="studylog-summary-card${overdueCount ? ' overdue' : ''}">
+            <div class="studylog-summary-subject">${subj}${overdueCount ? `<span class="studylog-summary-overdue-badge">⚠️ เลยกำหนด ${overdueCount} บท</span>` : ''}</div>
+            <div class="studylog-summary-progress">
+              <div class="studylog-summary-progress-bar"><div style="width:${pct}%"></div></div>
+              <span>${done.length}/${total}</span>
+            </div>
+            ${done.length ? `<div class="studylog-summary-section-title done">✅ ทบทวนแล้ว</div><ul class="studylog-summary-list">${itemsHTML(done, false)}</ul>` : ''}
+            ${planned.length ? `<div class="studylog-summary-section-title${overdueCount ? ' overdue' : ''}">🗓️ อยู่ในแผน</div><ul class="studylog-summary-list">${itemsHTML(planned, true)}</ul>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function getStudyLogDayEvents(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return TCAS70_EVENTS.filter(ev => {
+    const s = new Date(ev.start + 'T00:00:00');
+    const e = new Date(ev.end + 'T00:00:00');
+    return d >= s && d <= e;
+  });
+}
+
+function renderStudyLogCell(date, blockKey, entries) {
+  const cellKey = date + '|' + blockKey;
+  const isAdding = state.studyLogAddingCell === cellKey;
+
+  const entriesHTML = entries.map(e => {
+    if (state.studyLogEditingId === e.id) {
+      return `
+      <div class="studylog-add-form">
+        <input type="text" class="form-control" id="studylog-edit-subject" list="studylog-subject-list" value="${e.subject.replace(/"/g, '&quot;')}" placeholder="วิชา">
+        <input type="text" class="form-control" id="studylog-edit-topic" value="${(e.topic || '').replace(/"/g, '&quot;')}" placeholder="บท/เรื่อง (ไม่บังคับ)">
+        <div style="display:flex;gap:4px">
+          <input type="date" class="form-control" id="studylog-edit-date" value="${e.date}">
+          <select class="form-control" id="studylog-edit-block">
+            ${STUDY_TIME_BLOCKS.map(b => `<option value="${b.key}" ${b.key === (e.block || 'morning') ? 'selected' : ''}>${b.label}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:flex;gap:4px;margin-top:2px">
+          <button type="button" class="btn btn-primary btn-sm" onclick="saveEditStudyLogEntry('${e.id}')">บันทึก</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="cancelEditStudyLogEntry()">ยกเลิก</button>
+        </div>
+      </div>`;
+    }
+    return `
+    <div class="studylog-entry${e.done ? ' done' : ''}">
+      <input type="checkbox" ${e.done ? 'checked' : ''} onchange="toggleStudyLogEntry('${e.id}')">
+      <span class="studylog-entry-text">${e.subject}${e.topic ? ' · ' + e.topic : ''}</span>
+      <button type="button" class="studylog-entry-edit" onclick="startEditStudyLogEntry('${e.id}')" title="แก้ไข">✏️</button>
+      <button type="button" class="studylog-entry-remove" onclick="removeStudyLogEntry('${e.id}')" title="ลบ">✕</button>
+    </div>`;
+  }).join('');
+
+  const addUI = isAdding ? `
+    <div class="studylog-add-form">
+      <input type="text" class="form-control" id="studylog-cell-subject" list="studylog-subject-list" placeholder="วิชา">
+      <input type="text" class="form-control" id="studylog-cell-topic" placeholder="บท/เรื่อง (ไม่บังคับ)">
+      <div style="display:flex;gap:4px;margin-top:2px">
+        <button type="button" class="btn btn-primary btn-sm" onclick="addStudyLogEntryInCell('${date}','${blockKey}')">บันทึก</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="cancelStudyLogAdd()">ยกเลิก</button>
+      </div>
+    </div>
+  ` : `<button type="button" class="studylog-add-trigger" onclick="startStudyLogAdd('${date}','${blockKey}')">+ เพิ่ม</button>`;
+
+  return `<div class="studylog-cell">${entriesHTML}${addUI}</div>`;
+}
+
+function studyLogNavWeek(delta) {
+  const d = new Date(state.studyLogWeekStart + 'T00:00:00');
+  d.setDate(d.getDate() + delta * 7);
+  state.studyLogWeekStart = studyLogYMD(d);
+  state.studyLogAddingCell = null;
+  renderStudyLog();
+}
+
+function studyLogGoToday() {
+  state.studyLogWeekStart = studyLogWeekStart(studyLogYMD(new Date()));
+  state.studyLogAddingCell = null;
+  renderStudyLog();
+}
+
+function studyLogJumpToDate(dateStr) {
+  if (!dateStr) return;
+  state.studyLogWeekStart = studyLogWeekStart(dateStr);
+  state.studyLogAddingCell = null;
+  renderStudyLog();
+}
+
+function startStudyLogAdd(date, block) {
+  state.studyLogAddingCell = date + '|' + block;
+  renderStudyLog();
+  const el = document.getElementById('studylog-cell-subject');
+  if (el) el.focus();
+}
+
+function cancelStudyLogAdd() {
+  state.studyLogAddingCell = null;
+  renderStudyLog();
+}
+
+function addStudyLogEntryInCell(date, block) {
+  const subjEl = document.getElementById('studylog-cell-subject');
+  const topicEl = document.getElementById('studylog-cell-topic');
+  const subject = subjEl.value.trim();
+  const topic = topicEl.value.trim();
+  if (!subject) {
+    showToast('⚠️ กรุณาระบุวิชา', 'error');
+    return;
+  }
+  state.studentData.planner.studyLog.push({
+    id: 'sl-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    date, block, subject, topic, done: false
+  });
+  state.studyLogAddingCell = null;
+  debounceSave(200);
+  renderStudyLog();
+}
+
+function toggleStudyLogEntry(id) {
+  const entry = state.studentData.planner.studyLog.find(e => e.id === id);
+  if (!entry) return;
+  entry.done = !entry.done;
+  debounceSave(200);
+  renderStudyLog();
+}
+
+function removeStudyLogEntry(id) {
+  const log = state.studentData.planner.studyLog;
+  const idx = log.findIndex(e => e.id === id);
+  if (idx === -1) return;
+  log.splice(idx, 1);
+  debounceSave(200);
+  renderStudyLog();
+}
+
+function startEditStudyLogEntry(id) {
+  state.studyLogEditingId = id;
+  state.studyLogAddingCell = null;
+  renderStudyLog();
+}
+
+function cancelEditStudyLogEntry() {
+  state.studyLogEditingId = null;
+  renderStudyLog();
+}
+
+function saveEditStudyLogEntry(id) {
+  const entry = state.studentData.planner.studyLog.find(e => e.id === id);
+  if (!entry) return;
+  const subject = document.getElementById('studylog-edit-subject').value.trim();
+  const topic = document.getElementById('studylog-edit-topic').value.trim();
+  const date = document.getElementById('studylog-edit-date').value;
+  const block = document.getElementById('studylog-edit-block').value;
+  if (!subject || !date) {
+    showToast('⚠️ กรุณาระบุวันที่และวิชา', 'error');
+    return;
+  }
+  entry.subject = subject;
+  entry.topic = topic;
+  entry.date = date;
+  entry.block = block;
+  state.studyLogEditingId = null;
+  debounceSave(200);
+  renderStudyLog();
 }
 
 // ============================================================
@@ -2657,7 +4022,7 @@ function renderRound3Card(program, pct, prefs, wishlist) {
 
   const scoreBreakdown = Object.entries(criteria).map(([subj, weight]) => {
     const maxMap = {
-      tgat1:150, tgat2:150, tgat3:150,
+      tgat1:100, tgat2:100, tgat3:100,
       tpat1:300, tpat2:100, tpat3:100, tpat4:100, tpat5:100,
       amath1:100, amath2:100, ascience:100, asocial:100, athai:100, aeng:100,
       aphy:100, achem:100, abio:100, ahist:100, afre:100, ager:100, ajpn:100, achn:100, akor:100
@@ -2825,9 +4190,9 @@ function exportSummary() {
 
   const scoreRows = [
     { name: 'GPAX สะสม', val: gpa.cumulative, max: '4.00', unit: '' },
-    { name: 'TGAT1 ภาษาอังกฤษ', val: scores.tgat1, max: 150, unit: 'คะแนน' },
-    { name: 'TGAT2 การคิดวิเคราะห์', val: scores.tgat2, max: 150, unit: 'คะแนน' },
-    { name: 'TGAT3 สมรรถนะ', val: scores.tgat3, max: 150, unit: 'คะแนน' },
+    { name: 'TGAT1 ภาษาอังกฤษ', val: scores.tgat1, max: 100, unit: 'คะแนน' },
+    { name: 'TGAT2 การคิดวิเคราะห์', val: scores.tgat2, max: 100, unit: 'คะแนน' },
+    { name: 'TGAT3 สมรรถนะ', val: scores.tgat3, max: 100, unit: 'คะแนน' },
     { name: 'TPAT1 วิชาเฉพาะแพทย์', val: scores.tpat1, max: 300, unit: 'คะแนน' },
     { name: 'A-Level คณิต 1', val: scores.amath1, max: 100, unit: 'คะแนน' },
     { name: 'A-Level ภาษาอังกฤษ', val: scores.aeng, max: 100, unit: 'คะแนน' },
@@ -3033,49 +4398,49 @@ const TH_MONTHS_LONG  = ['มกราคม','กุมภาพันธ์','
 const TH_DAYS_SHORT   = ['อา','จ','อ','พ','พฤ','ศ','ส'];
 
 const TCAS70_EVENTS = [
-  { id:'reg-mytcas',      title:'ลงทะเบียน student.mytcas.com',  category:'เตรียมตัว',
+  { id:'reg-mytcas',      title:'ลงทะเบียน student.mytcas.com',  short:'ลงทะเบียน mytcas', category:'เตรียมตัว',
     subtitle:'สร้างบัญชีนักเรียนสำหรับสมัครสอบและ TCAS ทุกรอบ',
     type:'prep',         start:'2026-07-15', end:'2026-07-15', color:'#8B5CF6', icon:'🎓' },
-  { id:'round1',          title:'รอบ 1 Portfolio',                category:'รอบ TCAS',
+  { id:'round1',          title:'รอบ 1 Portfolio',                short:'Portfolio', category:'รอบ TCAS',
     subtitle:'ยื่นแฟ้มสะสมผลงาน ผ่าน TCASFolio — สำหรับนักเรียนที่มีผลงานพิเศษ',
     type:'round1',       start:'2026-08-15', end:'2027-02-28', color:'#6366F1', icon:'📁' },
-  { id:'reg-tgat-tpat',   title:'สมัครสอบ TGAT / TPAT',          category:'สมัคร',
+  { id:'reg-tgat-tpat',   title:'สมัครสอบ TGAT / TPAT',          short:'สมัคร TGAT/TPAT', category:'สมัคร',
     subtitle:'TGAT1-3 · TPAT2-5 · สมัครผ่าน student.mytcas.com',
     type:'registration', start:'2026-11-04', end:'2026-11-12', color:'#6366F1', icon:'📝' },
-  { id:'reg-alevel',      title:'สมัครสอบ A-Level',               category:'สมัคร',
+  { id:'reg-alevel',      title:'สมัครสอบ A-Level',               short:'สมัคร A-Level', category:'สมัคร',
     subtitle:'ทุกวิชา A-Level ผ่าน student.mytcas.com',
     type:'registration', start:'2027-01-14', end:'2027-01-22', color:'#6366F1', icon:'📝' },
-  { id:'exam-tgat-tpat3', title:'สอบ TGAT + TPAT3',              category:'สอบ',
+  { id:'exam-tgat-tpat3', title:'สอบ TGAT + TPAT3',              short:'สอบ TGAT/TPAT3', category:'สอบ',
     subtitle:'TGAT ความถนัดทั่วไป · TPAT3 วิทย์-เทคโน-วิศวะ',
     type:'exam',         start:'2027-01-30', end:'2027-01-30', color:'#EF4444', icon:'✏️' },
-  { id:'exam-tpat25',     title:'สอบ TPAT2 + TPAT5',             category:'สอบ',
+  { id:'exam-tpat25',     title:'สอบ TPAT2 + TPAT5',             short:'สอบ TPAT2/5', category:'สอบ',
     subtitle:'TPAT2 ศิลปกรรม · TPAT5 ครุศาสตร์-ศึกษาศาสตร์',
     type:'exam',         start:'2027-01-31', end:'2027-01-31', color:'#EF4444', icon:'✏️' },
-  { id:'exam-tpat4',      title:'สอบ TPAT4 สถาปัตยกรรม',         category:'สอบ',
+  { id:'exam-tpat4',      title:'สอบ TPAT4 สถาปัตยกรรม',         short:'สอบ TPAT4', category:'สอบ',
     subtitle:'80 ข้อ / 180 นาที',
     type:'exam',         start:'2027-02-01', end:'2027-02-01', color:'#EF4444', icon:'✏️' },
-  { id:'exam-tpat1',      title:'สอบ TPAT1 กสพท (แพทย์)',         category:'สอบ',
+  { id:'exam-tpat1',      title:'สอบ TPAT1 กสพท (แพทย์)',         short:'สอบ TPAT1 กสพท', category:'สอบ',
     subtitle:'เชาวน์ปัญญา · จริยธรรม · ความคิดเชื่อมโยง',
     type:'exam',         start:'2027-02-13', end:'2027-02-13', color:'#DC2626', icon:'🏥' },
-  { id:'exam-al1',        title:'A-Level วันที่ 1',               category:'สอบ',
+  { id:'exam-al1',        title:'A-Level วันที่ 1',               short:'A-Level วัน 1', category:'สอบ',
     subtitle:'ฟิสิกส์ · ชีววิทยา · สังคมศึกษา · ภาษาไทย',
     type:'exam',         start:'2027-03-13', end:'2027-03-13', color:'#F97316', icon:'✏️' },
-  { id:'exam-al2',        title:'A-Level วันที่ 2',               category:'สอบ',
+  { id:'exam-al2',        title:'A-Level วันที่ 2',               short:'A-Level วัน 2', category:'สอบ',
     subtitle:'คณิตศาสตร์1 · เคมี · ภาษาอังกฤษ',
     type:'exam',         start:'2027-03-14', end:'2027-03-14', color:'#F97316', icon:'✏️' },
-  { id:'exam-al3',        title:'A-Level วันที่ 3',               category:'สอบ',
+  { id:'exam-al3',        title:'A-Level วันที่ 3',               short:'A-Level วัน 3', category:'สอบ',
     subtitle:'คณิตศาสตร์2 · วิทยาศาสตร์ประยุกต์ · ภาษาต่างประเทศ',
     type:'exam',         start:'2027-03-15', end:'2027-03-15', color:'#F97316', icon:'✏️' },
-  { id:'result-alevel',   title:'ประกาศผลคะแนน A-Level',          category:'ผลคะแนน',
+  { id:'result-alevel',   title:'ประกาศผลคะแนน A-Level',          short:'ผล A-Level', category:'ผลคะแนน',
     subtitle:'ตรวจสอบผลที่ student.mytcas.com',
     type:'result',       start:'2027-04-20', end:'2027-04-20', color:'#F97316', icon:'📊' },
-  { id:'round2',          title:'รอบ 2 โควตา',                    category:'รอบ TCAS',
+  { id:'round2',          title:'รอบ 2 โควตา',                    short:'โควตา', category:'รอบ TCAS',
     subtitle:'โควตาพื้นที่ / ประเภทนักเรียน ผ่าน student.mytcas.com',
     type:'round2',       start:'2027-03-13', end:'2027-04-30', color:'#10B981', icon:'🏷️' },
-  { id:'round3',          title:'รอบ 3 Admission',                category:'รอบ TCAS',
+  { id:'round3',          title:'รอบ 3 Admission',                short:'Admission', category:'รอบ TCAS',
     subtitle:'ยื่นคะแนน TGAT/TPAT+A-Level — สูงสุด 10 อันดับ',
     type:'round3',       start:'2027-05-07', end:'2027-05-11', color:'#F59E0B', icon:'🎯' },
-  { id:'round4',          title:'รอบ 4 รับตรงอิสระ',              category:'รอบ TCAS',
+  { id:'round4',          title:'รอบ 4 รับตรงอิสระ',              short:'รับตรงอิสระ', category:'รอบ TCAS',
     subtitle:'รับตรงของแต่ละมหาวิทยาลัย — ตรวจสอบจากสถาบัน',
     type:'round4',       start:'2027-05-29', end:'2027-06-15', color:'#EF4444', icon:'🏛️' },
 ];
@@ -3090,6 +4455,23 @@ function calThDateRange(s, e) {
   if (sd.getMonth() === ed.getMonth() && sd.getFullYear() === ed.getFullYear())
     return `${sd.getDate()}–${ed.getDate()} ${TH_MONTHS_SHORT[sd.getMonth()]} ${(sd.getFullYear()+543).toString().slice(-2)}`;
   return `${calThDateStr(s)} – ${calThDateStr(e)}`;
+}
+
+// ---- Day-of-week helper (for Planner) ----
+const TH_DAYS_FULL = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+function calThDayName(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return `วัน${TH_DAYS_FULL[d.getDay()]}`;
+}
+// Returns "13 มี.ค. 70 (ศ)" for single day, or a range with start/end day names
+function calThDateRangeWithDay(s, e) {
+  const sd = new Date(s+'T00:00:00');
+  if (s === e) return `${calThDateStr(s)} (${TH_DAYS_SHORT[sd.getDay()]})`;
+  const ed = new Date(e+'T00:00:00');
+  const spanDays = Math.round((ed - sd) / 86400000);
+  // Long spans (rounds/portfolio windows) — day-of-week isn't meaningful, just show the date range
+  if (spanDays > 14) return calThDateRange(s, e);
+  return `${calThDateStr(s)} (${TH_DAYS_SHORT[sd.getDay()]}) – ${calThDateStr(e)} (${TH_DAYS_SHORT[ed.getDay()]})`;
 }
 
 // ---- Calendar grid helpers ----
@@ -3194,7 +4576,7 @@ function renderCalendar() {
       const extra  = dayEvs.length - show.length;
       show.forEach(ev => {
         const start = isStartDay(ev, cell.day);
-        const lbl   = start ? `${ev.icon} ${ev.title.slice(0,7)}` : '';
+        const lbl   = start ? `${ev.icon} ${ev.short || ev.title}` : '';
         evBarsHTML += `<div class="tcal-ev-bar${start?'':' cont'}" style="background:${ev.color}" title="${ev.title}">${lbl}</div>`;
       });
       if (extra > 0) evBarsHTML += `<div class="tcal-more">+${extra}</div>`;

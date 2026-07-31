@@ -10,7 +10,7 @@ const TCAS_DATA = {
       id: 1,
       name: "รอบที่ 1 Portfolio",
       nameEn: "Portfolio",
-      period: "ธ.ค. 2569 – ก.พ. 2570",
+      period: "15 ส.ค. 2569 – 28 ก.พ. 2570",
       color: "#6366F1",
       description: "การรับด้วยแฟ้มสะสมผลงาน สำหรับนักเรียนที่มีความสามารถพิเศษ ผลงาน และรางวัลโดดเด่น",
       requirements: ["GPAX (อาจกำหนด)", "Portfolio/แฟ้มสะสมผลงาน", "สัมภาษณ์", "ผลงาน/รางวัล"],
@@ -20,7 +20,7 @@ const TCAS_DATA = {
       id: 2,
       name: "รอบที่ 2 โควตา",
       nameEn: "Quota",
-      period: "ก.พ. – มี.ค. 2570",
+      period: "13 มี.ค. – 30 เม.ย. 2570",
       color: "#10B981",
       description: "การรับแบบโควตา สำหรับนักเรียนในพื้นที่หรือตามคุณสมบัติที่มหาวิทยาลัยกำหนด",
       requirements: ["GPAX", "TGAT/TPAT (ตามที่กำหนด)", "A-Level (ตามที่กำหนด)", "โควตาพื้นที่/ประเภท"],
@@ -30,7 +30,7 @@ const TCAS_DATA = {
       id: 3,
       name: "รอบที่ 3 Admission",
       nameEn: "Central Admission",
-      period: "เม.ย. – พ.ค. 2570",
+      period: "7–11 พ.ค. 2570",
       color: "#F59E0B",
       description: "การรับกลาง ใช้คะแนน TGAT/TPAT และ A-Level เป็นหลัก สมัครผ่านระบบ mytcas.com",
       requirements: ["GPAX", "TGAT", "TPAT (ตามสาขา)", "A-Level (ตามสาขา)"],
@@ -40,7 +40,7 @@ const TCAS_DATA = {
       id: 4,
       name: "รอบที่ 4 รับตรงอิสระ",
       nameEn: "Direct Admission",
-      period: "พ.ค. – มิ.ย. 2570",
+      period: "29 พ.ค. – 15 มิ.ย. 2570",
       color: "#EF4444",
       description: "การรับตรงของแต่ละมหาวิทยาลัย เป็นรอบสุดท้ายสำหรับนักเรียนที่ยังไม่ได้ที่เรียน",
       requirements: ["ตามที่แต่ละมหาวิทยาลัยกำหนด"],
@@ -54,9 +54,9 @@ const TCAS_DATA = {
       name: "TGAT",
       fullName: "Thai General Aptitude Test",
       subjects: {
-        tgat1: { name: "TGAT1 ความถนัดสื่อสารภาษาอังกฤษ", maxScore: 150, icon: "🌐" },
-        tgat2: { name: "TGAT2 การคิดอย่างมีเหตุผล", maxScore: 150, icon: "🧠" },
-        tgat3: { name: "TGAT3 สมรรถนะการทำงานในโลกอนาคต", maxScore: 150, icon: "⚡" }
+        tgat1: { name: "TGAT1 ความถนัดสื่อสารภาษาอังกฤษ", maxScore: 100, icon: "🌐" },
+        tgat2: { name: "TGAT2 การคิดอย่างมีเหตุผล", maxScore: 100, icon: "🧠" },
+        tgat3: { name: "TGAT3 สมรรถนะการทำงานในโลกอนาคต", maxScore: 100, icon: "⚡" }
       }
     },
     tpat: {
@@ -64,10 +64,10 @@ const TCAS_DATA = {
       fullName: "Thai Professional Aptitude Test",
       subjects: {
         tpat1: { name: "TPAT1 วิชาเฉพาะแพทย์ (กสพท)", maxScore: 300, icon: "🏥" },
-        tpat2: { name: "TPAT2 วิชาเฉพาะด้านศิลปะ", maxScore: 100, icon: "🎨" },
-        tpat3: { name: "TPAT3 วิชาเฉพาะสถาปัตยกรรม", maxScore: 100, icon: "🏛️" },
-        tpat4: { name: "TPAT4 วิชาเฉพาะครุศาสตร์/ศึกษาศาสตร์", maxScore: 100, icon: "📚" },
-        tpat5: { name: "TPAT5 วิชาเฉพาะกลุ่มสาธารณสุขศาสตร์", maxScore: 100, icon: "💊" }
+        tpat2: { name: "TPAT2 วิชาเฉพาะด้านศิลปกรรมศาสตร์", maxScore: 100, icon: "🎨" },
+        tpat3: { name: "TPAT3 วิชาเฉพาะวิทยาศาสตร์ เทคโนโลยี วิศวกรรมศาสตร์", maxScore: 100, icon: "⚙️" },
+        tpat4: { name: "TPAT4 วิชาเฉพาะสถาปัตยกรรมศาสตร์", maxScore: 100, icon: "🏛️" },
+        tpat5: { name: "TPAT5 วิชาเฉพาะครุศาสตร์/ศึกษาศาสตร์", maxScore: 100, icon: "📚" }
       }
     },
     alevel: {
@@ -104,7 +104,8 @@ const TCAS_DATA = {
       location: "กรุงเทพมหานคร",
       type: "รัฐ",
       website: "www.chula.ac.th",
-      logo: "https://upload.wikimedia.org/wikipedia/th/7/70/Chulalongkorn_University_Logo.png"
+      logo: "https://upload.wikimedia.org/wikipedia/th/7/70/Chulalongkorn_University_Logo.png",
+      portfolioSystem: "tcasfolio",  // confirmed: CU accepts Round 1 portfolios only via ทปอ. TCASFolio (July 2026 announcement)
     },
     {
       id: "mu",
@@ -115,7 +116,8 @@ const TCAS_DATA = {
       location: "นครปฐม / กรุงเทพมหานคร",
       type: "รัฐ",
       website: "www.mahidol.ac.th",
-      logo: "https://upload.wikimedia.org/wikipedia/th/7/77/Mahidol_University_Seal.png"
+      logo: "https://upload.wikimedia.org/wikipedia/th/7/77/Mahidol_University_Seal.png",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "tu",
@@ -126,7 +128,8 @@ const TCAS_DATA = {
       location: "ปทุมธานี / กรุงเทพมหานคร",
       type: "รัฐ",
       website: "www.tu.ac.th",
-      logo: "https://upload.wikimedia.org/wikipedia/th/a/a7/TU_symbol.png"
+      logo: "https://upload.wikimedia.org/wikipedia/th/a/a7/TU_symbol.png",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "ku",
@@ -137,7 +140,8 @@ const TCAS_DATA = {
       location: "กรุงเทพมหานคร",
       type: "รัฐ",
       website: "www.ku.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "su",
@@ -148,7 +152,8 @@ const TCAS_DATA = {
       location: "กรุงเทพมหานคร / นครปฐม",
       type: "รัฐ",
       website: "www.su.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "cmu",
@@ -159,7 +164,8 @@ const TCAS_DATA = {
       location: "เชียงใหม่",
       type: "รัฐ",
       website: "www.cmu.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "kku",
@@ -170,7 +176,8 @@ const TCAS_DATA = {
       location: "ขอนแก่น",
       type: "รัฐ",
       website: "www.kku.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "psu",
@@ -181,7 +188,8 @@ const TCAS_DATA = {
       location: "สงขลา / ปัตตานี / ภูเก็ต",
       type: "รัฐ",
       website: "www.psu.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "swu",
@@ -192,7 +200,8 @@ const TCAS_DATA = {
       location: "กรุงเทพมหานคร",
       type: "รัฐ",
       website: "www.swu.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "kmutt",
@@ -203,7 +212,8 @@ const TCAS_DATA = {
       location: "กรุงเทพมหานคร",
       type: "รัฐ",
       website: "www.kmutt.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "kmitl",
@@ -214,7 +224,8 @@ const TCAS_DATA = {
       location: "กรุงเทพมหานคร",
       type: "รัฐ",
       website: "www.kmitl.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "nu",
@@ -225,7 +236,8 @@ const TCAS_DATA = {
       location: "พิษณุโลก",
       type: "รัฐ",
       website: "www.nu.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "bu",
@@ -236,7 +248,8 @@ const TCAS_DATA = {
       location: "ชลบุรี",
       type: "รัฐ",
       website: "www.buu.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "ru",
@@ -247,7 +260,8 @@ const TCAS_DATA = {
       location: "กรุงเทพมหานคร",
       type: "รัฐ (ตลาดวิชา)",
       website: "www.ru.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "mfu",
@@ -258,7 +272,8 @@ const TCAS_DATA = {
       location: "เชียงราย",
       type: "รัฐ",
       website: "www.mfu.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "kmutnb",
@@ -269,7 +284,8 @@ const TCAS_DATA = {
       location: "กรุงเทพมหานคร",
       type: "รัฐ",
       website: "www.kmutnb.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "msu",
@@ -280,7 +296,8 @@ const TCAS_DATA = {
       location: "มหาสารคาม",
       type: "รัฐ",
       website: "www.msu.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "ubu",
@@ -291,7 +308,8 @@ const TCAS_DATA = {
       location: "อุบลราชธานี",
       type: "รัฐ",
       website: "www.ubu.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "wu",
@@ -302,7 +320,8 @@ const TCAS_DATA = {
       location: "นครศรีธรรมราช",
       type: "รัฐ",
       website: "www.wu.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "rmutt",
@@ -313,7 +332,8 @@ const TCAS_DATA = {
       location: "ปทุมธานี",
       type: "รัฐ",
       website: "www.rmutt.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "rmutp",
@@ -324,7 +344,8 @@ const TCAS_DATA = {
       location: "กรุงเทพมหานคร",
       type: "รัฐ",
       website: "www.rmutp.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "rsu",
@@ -335,7 +356,8 @@ const TCAS_DATA = {
       location: "ปทุมธานี",
       type: "เอกชน",
       website: "www.rsu.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "bu2",
@@ -346,7 +368,8 @@ const TCAS_DATA = {
       location: "กรุงเทพมหานคร",
       type: "เอกชน",
       website: "www.bu.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "spu",
@@ -357,7 +380,8 @@ const TCAS_DATA = {
       location: "กรุงเทพมหานคร",
       type: "เอกชน",
       website: "www.spu.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "dpu",
@@ -368,7 +392,8 @@ const TCAS_DATA = {
       location: "กรุงเทพมหานคร",
       type: "เอกชน",
       website: "www.dpu.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "abac",
@@ -379,7 +404,8 @@ const TCAS_DATA = {
       location: "กรุงเทพมหานคร",
       type: "เอกชน",
       website: "www.au.edu",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "utcc",
@@ -390,7 +416,8 @@ const TCAS_DATA = {
       location: "กรุงเทพมหานคร",
       type: "เอกชน",
       website: "www.utcc.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "kku2",
@@ -401,7 +428,8 @@ const TCAS_DATA = {
       location: "มหาสารคาม",
       type: "รัฐ (ราชภัฏ)",
       website: "www.rmu.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     },
     {
       id: "bru",
@@ -412,7 +440,8 @@ const TCAS_DATA = {
       location: "บุรีรัมย์",
       type: "รัฐ (ราชภัฏ)",
       website: "www.bru.ac.th",
-      logo: ""
+      logo: "",
+      portfolioSystem: "unconfirmed",  // 'tcasfolio' | 'independent' | 'both' | 'unconfirmed' — TCAS70 Round 1 portfolio submission policy
     }
   ],
 
@@ -636,11 +665,11 @@ const TCAS_DATA = {
       criteria: {
         round3: {
           tgat2: 20,
-          tpat3: 40,
+          tpat4: 40,
           amath1: 20, aeng: 10, aphy: 10
         }
       },
-      specialReq: ["TPAT3 (สถาปัตย์)", "Portfolio"]
+      specialReq: ["TPAT4 (สถาปัตยกรรม)", "Portfolio"]
     },
 
     // ===== มหาวิทยาลัยมหิดล =====
@@ -651,7 +680,7 @@ const TCAS_DATA = {
       program: "หลักสูตรแพทยศาสตรบัณฑิต",
       category: "สาธารณสุข",
       duration: "6 ปี",
-      seats: 300,
+      seats: 292,  // TCAS70: Portfolio 90 (65+20+5) + กสพท 202, per Siriraj's own announcement (source: eduzones.com/2026/07/01/sieduit70)
       rounds: [1, 2, 3],
       minGPA: 3.50,
       competition: "สูงมาก",
@@ -680,11 +709,10 @@ const TCAS_DATA = {
       criteria: {
         round3: {
           tgat1: 10, tgat2: 10,
-          tpat5: 30,
-          amath1: 10, achem: 20, abio: 15, aeng: 5
+           amath1: 10, achem: 20, abio: 15, aeng: 5
         }
       },
-      specialReq: ["TPAT5"]
+      specialReq: []
     },
     {
       id: "mu-nursing",
@@ -701,11 +729,10 @@ const TCAS_DATA = {
       criteria: {
         round3: {
           tgat1: 10, tgat2: 10,
-          tpat5: 20,
-          ascience: 20, abio: 20, achem: 10, aeng: 10
+           ascience: 20, abio: 20, achem: 10, aeng: 10
         }
       },
-      specialReq: ["TPAT5"]
+      specialReq: []
     },
     {
       id: "mu-sci-biotech",
@@ -1051,11 +1078,10 @@ const TCAS_DATA = {
       criteria: {
         round3: {
           tgat1: 10, tgat2: 10,
-          tpat5: 20,
-          achem: 25, abio: 20, amath1: 10, aeng: 5
+           achem: 25, abio: 20, amath1: 10, aeng: 5
         }
       },
-      specialReq: ["TPAT5"]
+      specialReq: []
     },
 
     // ===== มหาวิทยาลัยขอนแก่น =====
@@ -1115,11 +1141,10 @@ const TCAS_DATA = {
       criteria: {
         round3: {
           tgat1: 10, tgat2: 10,
-          tpat5: 20,
-          abio: 25, achem: 15, amath1: 10, aeng: 10
+           abio: 25, achem: 15, amath1: 10, aeng: 10
         }
       },
-      specialReq: ["TPAT5"]
+      specialReq: []
     },
 
     // ===== มหาวิทยาลัยขอนแก่น (เพิ่มเติม) =====
@@ -1158,11 +1183,10 @@ const TCAS_DATA = {
       criteria: {
         round3: {
           tgat1: 10, tgat2: 10,
-          tpat5: 20,
-          achem: 25, abio: 20, amath1: 10, aeng: 5
+           achem: 25, abio: 20, amath1: 10, aeng: 5
         }
       },
-      specialReq: ["TPAT5"]
+      specialReq: []
     },
 
     // ===== มหาวิทยาลัยสงขลานครินทร์ =====
@@ -1224,11 +1248,10 @@ const TCAS_DATA = {
       criteria: {
         round3: {
           tgat1: 10, tgat2: 10,
-          tpat5: 20,
-          achem: 25, abio: 20, amath1: 10, aeng: 5
+           achem: 25, abio: 20, amath1: 10, aeng: 5
         }
       },
-      specialReq: ["TPAT5"]
+      specialReq: []
     },
     {
       id: "psu-nurse",
@@ -1245,11 +1268,10 @@ const TCAS_DATA = {
       criteria: {
         round3: {
           tgat1: 10, tgat2: 10,
-          tpat5: 20,
-          abio: 25, achem: 15, amath1: 10, aeng: 10
+           abio: 25, achem: 15, amath1: 10, aeng: 10
         }
       },
-      specialReq: ["TPAT5"]
+      specialReq: []
     },
     {
       id: "psu-it",
@@ -1308,11 +1330,11 @@ const TCAS_DATA = {
       criteria: {
         round3: {
           tgat2: 20,
-          tpat3: 40,
+          tpat4: 40,
           amath1: 20, aphy: 10, aeng: 10
         }
       },
-      specialReq: ["TPAT3"]
+      specialReq: ["TPAT4 (สถาปัตยกรรม)"]
     },
     {
       id: "su-thai-art",
@@ -1373,11 +1395,11 @@ const TCAS_DATA = {
       criteria: {
         round3: {
           tgat1: 20, tgat2: 15,
-          tpat4: 30,
+          tpat5: 30,
           athai: 15, aeng: 10, asocial: 10
         }
       },
-      specialReq: ["TPAT4"]
+      specialReq: ["TPAT5 (ครุศาสตร์)"]
     },
     {
       id: "swu-comm",
@@ -1657,8 +1679,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ปานกลาง",
       description: "ออกแบบอาคาร สภาพแวดล้อม สถาปัตยกรรมยั่งยืน",
-      criteria: { round3: { tgat2: 15, tpat3: 35, amath1: 20, aphy: 15, aeng: 15 } },
-      specialReq: ["TPAT3 (สถาปัตยกรรม)", "แฟ้มผลงาน"]
+      criteria: { round3: { tgat2: 15, tpat4: 35, amath1: 20, aphy: 15, aeng: 15 } },
+      specialReq: ["TPAT4 (สถาปัตยกรรม)", "แฟ้มผลงาน"]
     },
     {
       id: "kmutt-arch-ind",
@@ -1672,8 +1694,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ปานกลาง",
       description: "Industrial Design ออกแบบผลิตภัณฑ์และนวัตกรรม",
-      criteria: { round3: { tgat2: 15, tpat3: 35, amath1: 20, aphy: 15, aeng: 15 } },
-      specialReq: ["TPAT3 (สถาปัตยกรรม)", "แฟ้มผลงาน"]
+      criteria: { round3: { tgat2: 15, tpat4: 35, amath1: 20, aphy: 15, aeng: 15 } },
+      specialReq: ["TPAT4 (สถาปัตยกรรม)", "แฟ้มผลงาน"]
     },
     {
       id: "kmutt-arch-comm",
@@ -1703,8 +1725,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ต่ำ",
       description: "ครูช่างอุตสาหกรรม เทคนิคศึกษา",
-      criteria: { round3: { tgat2: 20, tpat4: 30, amath1: 25, aphy: 25 } },
-      specialReq: ["TPAT4 (ครุศาสตร์)"]
+      criteria: { round3: { tgat2: 20, tpat5: 30, amath1: 25, aphy: 25 } },
+      specialReq: ["TPAT5 (ครุศาสตร์)"]
     },
     // -- สถาบันวิทยาการหุ่นยนต์ภาคสนาม (FIBO) --
     {
@@ -1775,11 +1797,11 @@ const TCAS_DATA = {
       criteria: {
         round3: {
           tgat2: 15,
-          tpat3: 40,
+          tpat4: 40,
           amath1: 20, aphy: 15, aeng: 10
         }
       },
-      specialReq: ["TPAT3"]
+      specialReq: ["TPAT4 (สถาปัตยกรรม)"]
     },
     {
       id: "kmitl-sci-ai",
@@ -1838,11 +1860,11 @@ const TCAS_DATA = {
       criteria: {
         round3: {
           tgat2: 10,
-          tpat3: 40,
+          tpat4: 40,
           amath1: 20, aphy: 15, aeng: 15
         }
       },
-      specialReq: ["TPAT3", "Portfolio"]
+      specialReq: ["TPAT4 (สถาปัตยกรรม)", "Portfolio"]
     },
 
     // ===== มหาวิทยาลัยนเรศวร =====
@@ -1861,11 +1883,10 @@ const TCAS_DATA = {
       criteria: {
         round3: {
           tgat1: 10, tgat2: 10,
-          tpat5: 25,
-          achem: 25, abio: 20, amath1: 10
+           achem: 25, abio: 20, amath1: 10
         }
       },
-      specialReq: ["TPAT5"]
+      specialReq: []
     },
     {
       id: "nu-eng",
@@ -1925,11 +1946,10 @@ const TCAS_DATA = {
       criteria: {
         round3: {
           tgat1: 10, tgat2: 10,
-          tpat5: 20,
-          abio: 25, achem: 15, amath1: 10, aeng: 10
+           abio: 25, achem: 15, amath1: 10, aeng: 10
         }
       },
-      specialReq: ["TPAT5"]
+      specialReq: []
     },
     {
       id: "nu-biz",
@@ -2121,8 +2141,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ปานกลาง",
       description: "ครูการศึกษาพิเศษ เด็กที่มีความต้องการพิเศษ",
-      criteria: { round3: { tgat1: 20, tgat2: 20, tpat4: 30, athai: 20, aeng: 10 } },
-      specialReq: ["TPAT4 (ครุศาสตร์)"]
+      criteria: { round3: { tgat1: 20, tgat2: 20, tpat5: 30, athai: 20, aeng: 10 } },
+      specialReq: ["TPAT5 (ครุศาสตร์)"]
     },
     {
       id: "swu-psych",
@@ -2215,8 +2235,8 @@ const TCAS_DATA = {
       minGPA: 3.00,
       competition: "ปานกลาง",
       description: "เภสัชกรรมชุมชนและอุตสาหกรรมยา",
-      criteria: { round3: { tgat1: 10, tgat2: 10, tpat5: 25, achem: 20, abio: 20, aeng: 15 } },
-      specialReq: ["TPAT5"]
+      criteria: { round3: { tgat1: 10, tgat2: 10, achem: 20, abio: 20, aeng: 15 } },
+      specialReq: []
     },
     {
       id: "msu-law",
@@ -2245,8 +2265,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ต่ำ",
       description: "ครูภาษาไทยระดับมัธยมศึกษา",
-      criteria: { round3: { tgat1: 15, tgat2: 20, tpat4: 30, athai: 25, aeng: 10 } },
-      specialReq: ["TPAT4"]
+      criteria: { round3: { tgat1: 15, tgat2: 20, tpat5: 30, athai: 25, aeng: 10 } },
+      specialReq: ["TPAT5 (ครุศาสตร์)"]
     },
 
     // ===== มหาวิทยาลัยอุบลราชธานี =====
@@ -2262,8 +2282,8 @@ const TCAS_DATA = {
       minGPA: 3.00,
       competition: "ปานกลาง",
       description: "เภสัชกรรมมหาวิทยาลัยอุบลราชธานี",
-      criteria: { round3: { tgat1: 10, tgat2: 10, tpat5: 25, achem: 20, abio: 20, aeng: 15 } },
-      specialReq: ["TPAT5"]
+      criteria: { round3: { tgat1: 10, tgat2: 10, achem: 20, abio: 20, aeng: 15 } },
+      specialReq: []
     },
     {
       id: "ubu-eng",
@@ -2324,8 +2344,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ปานกลาง",
       description: "พยาบาลวิชาชีพ ดูแลผู้ป่วยทุกช่วงวัย",
-      criteria: { round3: { tgat1: 15, tgat2: 15, tpat5: 20, ascience: 20, abio: 20, aeng: 10 } },
-      specialReq: ["TPAT5"]
+      criteria: { round3: { tgat1: 15, tgat2: 15, ascience: 20, abio: 20, aeng: 10 } },
+      specialReq: []
     },
     {
       id: "wu-it",
@@ -2418,8 +2438,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ปานกลาง",
       description: "ออกแบบตกแต่งภายในและพื้นที่อยู่อาศัย",
-      criteria: { round3: { tgat2: 20, tpat3: 40, amath1: 20, aeng: 10, aphy: 10 } },
-      specialReq: ["TPAT3 (สถาปัตย์)"]
+      criteria: { round3: { tgat2: 20, tpat4: 40, amath1: 20, aeng: 10, aphy: 10 } },
+      specialReq: ["TPAT4 (สถาปัตยกรรม)"]
     },
 
     // ===== RMUTP (เพิ่มเติม) =====
@@ -2492,8 +2512,8 @@ const TCAS_DATA = {
       minGPA: 3.00,
       competition: "ปานกลาง",
       description: "เภสัชกรรม มหาวิทยาลัยรังสิต",
-      criteria: { round3: { tgat1: 10, tgat2: 10, tpat5: 25, achem: 20, abio: 20, aeng: 15 } },
-      specialReq: ["TPAT5"]
+      criteria: { round3: { tgat1: 10, tgat2: 10, achem: 20, abio: 20, aeng: 15 } },
+      specialReq: []
     },
     {
       id: "rsu-design",
@@ -2819,8 +2839,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ต่ำ",
       description: "ครูคณิตศาสตร์ระดับมัธยมศึกษา",
-      criteria: { round3: { tgat1: 15, tgat2: 20, tpat4: 30, amath1: 25, aeng: 10 } },
-      specialReq: ["TPAT4"]
+      criteria: { round3: { tgat1: 15, tgat2: 20, tpat5: 30, amath1: 25, aeng: 10 } },
+      specialReq: ["TPAT5 (ครุศาสตร์)"]
     },
     {
       id: "kku2-sc-edu",
@@ -2834,8 +2854,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ต่ำ",
       description: "ครูวิทยาศาสตร์ระดับมัธยมศึกษา",
-      criteria: { round3: { tgat1: 15, tgat2: 20, tpat4: 25, ascience: 25, aeng: 15 } },
-      specialReq: ["TPAT4"]
+      criteria: { round3: { tgat1: 15, tgat2: 20, tpat5: 25, ascience: 25, aeng: 15 } },
+      specialReq: ["TPAT5 (ครุศาสตร์)"]
     },
 
     // ===== ราชภัฏมหาสารคาม (เพิ่มเติม) =====
@@ -2893,8 +2913,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ต่ำ",
       description: "ครูปฐมวัย พัฒนาการเด็กและการเรียนรู้",
-      criteria: { round3: { tgat1: 15, tgat2: 20, tpat4: 30, athai: 20, aeng: 15 } },
-      specialReq: ["TPAT4"]
+      criteria: { round3: { tgat1: 15, tgat2: 20, tpat5: 30, athai: 20, aeng: 15 } },
+      specialReq: ["TPAT5 (ครุศาสตร์)"]
     },
     {
       id: "bru-cs",
@@ -2928,11 +2948,10 @@ const TCAS_DATA = {
       criteria: {
         round3: {
           tgat1: 10, tgat2: 10,
-          tpat5: 20,
-          abio: 25, achem: 15, amath1: 10, aeng: 10
+           abio: 25, achem: 15, amath1: 10, aeng: 10
         }
       },
-      specialReq: ["TPAT5"]
+      specialReq: []
     },
     {
       id: "bu-mgt",
@@ -3113,8 +3132,8 @@ const TCAS_DATA = {
       minGPA: 3.00,
       competition: "สูง",
       description: "พยาบาลวิชาชีพ ภาคเหนือ มหาวิทยาลัยเชียงใหม่",
-      criteria: { round3: { tgat1: 15, tgat2: 10, tpat5: 25, abio: 20, achem: 15, amath1: 10, aeng: 5 } },
-      specialReq: ["TPAT5"]
+      criteria: { round3: { tgat1: 15, tgat2: 10, abio: 20, achem: 15, amath1: 10, aeng: 5 } },
+      specialReq: []
     },
     {
       id: "cmu-edu",
@@ -3128,8 +3147,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ต่ำ",
       description: "ครูภาษาไทย การสอนระดับมัธยมศึกษา",
-      criteria: { round3: { tgat1: 20, tgat2: 15, tpat4: 30, athai: 25, aeng: 10 } },
-      specialReq: ["TPAT4 (ครุศาสตร์)"]
+      criteria: { round3: { tgat1: 20, tgat2: 15, tpat5: 30, athai: 25, aeng: 10 } },
+      specialReq: ["TPAT5 (ครุศาสตร์)"]
     },
     {
       id: "cmu-sci-math",
@@ -3190,8 +3209,8 @@ const TCAS_DATA = {
       minGPA: 3.00,
       competition: "สูง",
       description: "บำบัดฟื้นฟูสมรรถภาพร่างกาย",
-      criteria: { round3: { tgat1: 10, tgat2: 10, tpat5: 20, abio: 25, achem: 15, amath1: 10, aeng: 10 } },
-      specialReq: ["TPAT5"]
+      criteria: { round3: { tgat1: 10, tgat2: 10, abio: 25, achem: 15, amath1: 10, aeng: 10 } },
+      specialReq: []
     },
     {
       id: "mu-med-tech",
@@ -3205,8 +3224,8 @@ const TCAS_DATA = {
       minGPA: 3.00,
       competition: "สูง",
       description: "วิเคราะห์ทางห้องปฏิบัติการ วินิจฉัยโรค",
-      criteria: { round3: { tgat1: 10, tgat2: 10, tpat5: 20, abio: 25, achem: 20, amath1: 10, aeng: 5 } },
-      specialReq: ["TPAT5"]
+      criteria: { round3: { tgat1: 10, tgat2: 10, abio: 25, achem: 20, amath1: 10, aeng: 5 } },
+      specialReq: []
     },
     {
       id: "mu-eng-biomedical",
@@ -3235,8 +3254,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ปานกลาง",
       description: "สุขภาพชุมชน อนามัยสิ่งแวดล้อม ระบาดวิทยา",
-      criteria: { round3: { tgat1: 15, tgat2: 15, tpat5: 20, abio: 20, achem: 15, amath1: 10, aeng: 5 } },
-      specialReq: ["TPAT5"]
+      criteria: { round3: { tgat1: 15, tgat2: 15, abio: 20, achem: 15, amath1: 10, aeng: 5 } },
+      specialReq: []
     },
 
     // ===== ธรรมศาสตร์ เพิ่มเติม =====
@@ -3267,8 +3286,8 @@ const TCAS_DATA = {
       minGPA: 3.00,
       competition: "สูง",
       description: "พยาบาลวิชาชีพ มหาวิทยาลัยธรรมศาสตร์",
-      criteria: { round3: { tgat1: 15, tgat2: 10, tpat5: 25, abio: 20, achem: 15, amath1: 10, aeng: 5 } },
-      specialReq: ["TPAT5"]
+      criteria: { round3: { tgat1: 15, tgat2: 10, abio: 20, achem: 15, amath1: 10, aeng: 5 } },
+      specialReq: []
     },
     {
       id: "tu-arch",
@@ -3282,8 +3301,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ปานกลาง",
       description: "สถาปัตยกรรมร่วมสมัย ผังเมือง",
-      criteria: { round3: { tgat2: 15, tpat3: 35, amath1: 20, aphy: 15, aeng: 15 } },
-      specialReq: ["TPAT3 (สถาปัตยกรรม)", "แฟ้มผลงาน"]
+      criteria: { round3: { tgat2: 15, tpat4: 35, amath1: 20, aphy: 15, aeng: 15 } },
+      specialReq: ["TPAT4 (สถาปัตยกรรม)", "แฟ้มผลงาน"]
     },
     {
       id: "tu-sci-cs",
@@ -3406,8 +3425,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ปานกลาง",
       description: "สถาปัตยกรรม ผังเมือง ภาคอีสาน",
-      criteria: { round3: { tgat2: 15, tpat3: 35, amath1: 20, aphy: 15, aeng: 15 } },
-      specialReq: ["TPAT3 (สถาปัตยกรรม)"]
+      criteria: { round3: { tgat2: 15, tpat4: 35, amath1: 20, aphy: 15, aeng: 15 } },
+      specialReq: ["TPAT4 (สถาปัตยกรรม)"]
     },
     {
       id: "kku-econ",
@@ -3436,8 +3455,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ต่ำ",
       description: "ครูคณิตศาสตร์ระดับมัธยมศึกษา",
-      criteria: { round3: { tgat1: 15, tgat2: 15, tpat4: 30, amath1: 30, aeng: 10 } },
-      specialReq: ["TPAT4 (ครุศาสตร์)"]
+      criteria: { round3: { tgat1: 15, tgat2: 15, tpat5: 30, amath1: 30, aeng: 10 } },
+      specialReq: ["TPAT5 (ครุศาสตร์)"]
     },
     {
       id: "kku-public-health",
@@ -3451,8 +3470,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ปานกลาง",
       description: "สุขภาพชุมชน อนามัยสิ่งแวดล้อม ระบาดวิทยา",
-      criteria: { round3: { tgat1: 15, tgat2: 15, tpat5: 20, abio: 20, achem: 15, amath1: 10, aeng: 5 } },
-      specialReq: ["TPAT5"]
+      criteria: { round3: { tgat1: 15, tgat2: 15, abio: 20, achem: 15, amath1: 10, aeng: 5 } },
+      specialReq: []
     },
 
     // ===== ศิลปากร เพิ่มเติม =====
@@ -3468,8 +3487,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ปานกลาง",
       description: "ออกแบบตกแต่งภายในอาคาร",
-      criteria: { round3: { tgat2: 15, tpat3: 40, amath1: 15, aeng: 15, athai: 15 } },
-      specialReq: ["TPAT3 (สถาปัตยกรรม)", "แฟ้มผลงาน"]
+      criteria: { round3: { tgat2: 15, tpat4: 40, amath1: 15, aeng: 15, athai: 15 } },
+      specialReq: ["TPAT4 (สถาปัตยกรรม)", "แฟ้มผลงาน"]
     },
     {
       id: "su-pharma",
@@ -3483,8 +3502,8 @@ const TCAS_DATA = {
       minGPA: 3.25,
       competition: "สูง",
       description: "เภสัชกรรม เภสัชวิทยา ดูแลผู้ป่วย",
-      criteria: { round3: { tgat2: 10, tpat5: 20, amath1: 15, achem: 25, abio: 20, aphy: 10 } },
-      specialReq: ["TPAT5"]
+      criteria: { round3: { tgat2: 10, amath1: 15, achem: 25, abio: 20, aphy: 10 } },
+      specialReq: []
     },
 
     // ===== นเรศวร เพิ่มเติม =====
@@ -3530,8 +3549,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ปานกลาง",
       description: "สถาปัตยกรรม ภาคเหนือตอนล่าง",
-      criteria: { round3: { tgat2: 15, tpat3: 35, amath1: 20, aphy: 15, aeng: 15 } },
-      specialReq: ["TPAT3 (สถาปัตยกรรม)"]
+      criteria: { round3: { tgat2: 15, tpat4: 35, amath1: 20, aphy: 15, aeng: 15 } },
+      specialReq: ["TPAT4 (สถาปัตยกรรม)"]
     },
     {
       id: "nu-edu",
@@ -3545,8 +3564,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ต่ำ",
       description: "ครูปฐมวัย พัฒนาการเด็ก",
-      criteria: { round3: { tgat1: 20, tgat2: 15, tpat4: 30, athai: 25, aeng: 10 } },
-      specialReq: ["TPAT4 (ครุศาสตร์)"]
+      criteria: { round3: { tgat1: 20, tgat2: 15, tpat5: 30, athai: 25, aeng: 10 } },
+      specialReq: ["TPAT5 (ครุศาสตร์)"]
     },
 
     // ===== สงขลานครินทร์ เพิ่มเติม =====
@@ -3607,8 +3626,8 @@ const TCAS_DATA = {
       minGPA: 2.75,
       competition: "ต่ำ",
       description: "ครู นักบริหารการศึกษา ภาคใต้",
-      criteria: { round3: { tgat1: 20, tgat2: 15, tpat4: 30, asocial: 20, athai: 15 } },
-      specialReq: ["TPAT4 (ครุศาสตร์)"]
+      criteria: { round3: { tgat1: 20, tgat2: 15, tpat5: 30, asocial: 20, athai: 15 } },
+      specialReq: ["TPAT5 (ครุศาสตร์)"]
     }
   ],
 
@@ -3926,7 +3945,7 @@ function calculateMatchScore(program, studentData) {
   let issues = [];
 
   const scores = studentData.scores || {};
-  const gpa = parseFloat(studentData.gpa) || 0;
+  const gpa = parseFloat(studentData.gpa?.cumulative) || 0;
   const portfolio = studentData.portfolio || {};
 
   // GPA Check

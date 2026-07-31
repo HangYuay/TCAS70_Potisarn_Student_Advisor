@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="images/icon-180.png">
   <title>TCAS70: Student Advisor for Potisarnpittayakorn School</title>
-  <link rel="stylesheet" href="css/style.css?v=9">
+  <link rel="stylesheet" href="css/style.css?v=25">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='12' fill='%231B3BAE'/><polygon points='50,5 82,18 88,46 50,48 12,46 18,18' fill='%231B3BAE'/><rect x='12' y='46' width='18' height='36' fill='%231B3BAE'/><rect x='70' y='46' width='18' height='36' fill='%231B3BAE'/><path d='M50,8 C62,6 82,16 86,36 C89,50 84,66 70,76 C62,82 54,86 51,89 L50,92 L49,89 C46,86 38,82 30,76 C16,66 11,50 14,36 C18,16 38,6 50,8Z' fill='white'/><path d='M50,12 C60,10 78,20 82,38 C85,52 80,67 67,77 C59,83 52,87 50.5,90 L50,92 L49.5,90 C48,87 41,83 33,77 C20,67 15,52 18,38 C22,20 40,10 50,12Z' fill='%23D61A8E'/></svg>">
 </head>
 <body>
@@ -42,7 +42,7 @@
     <!-- Title -->
     <div class="header-title">
       <h1>TCAS70: Student Advisor for Potisarnpittayakorn School</h1>
-      <p>ระบบแนะแนวการศึกษาต่อ โรงเรียนโพธิสารพิทยากร · ปีการศึกษา 2570</p>
+      <p>ระบบแนะแนวการศึกษาต่อระดับอุดมศึกษา ปีการศึกษา 2570</p>
     </div>
 
     <!-- Header Actions -->
@@ -106,6 +106,21 @@
       </div>
       <div class="nav-item" data-page="recommend">
         <span class="nav-icon">🎯</span><span>คณะที่เหมาะกับคุณ</span>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">วางแผน</div>
+      <div class="nav-item" data-page="planner">
+        <span class="nav-icon">🗂️</span><span>My TCAS Planner</span>
+      </div>
+      <div class="nav-item" data-page="studylog">
+        <span class="nav-icon">📖</span><span>ตารางอ่านหนังสือ</span>
+      </div>
+      <div class="nav-item" data-page="mocktest">
+        <span class="nav-icon">🧪</span><span>Mock Test</span>
+      </div>
+      <div class="nav-item" data-page="mistakelog">
+        <span class="nav-icon">📕</span><span>สมุดบันทึกข้อผิดพลาด</span>
       </div>
     </div>
     <div class="sidebar-section">
@@ -179,6 +194,50 @@
     </section>
 
     <!-- ============================================================
+         MY TCAS PLANNER PAGE
+         ============================================================ -->
+    <section id="page-planner" class="page-section hidden">
+      <div class="page-header">
+        <h2>🗂️ My TCAS Planner</h2>
+        <p>รวมแผนของคุณไว้ที่เดียว เป้าหมาย คะแนน กำหนดการ และรอบที่จะสมัคร</p>
+      </div>
+      <div id="planner-content"></div>
+    </section>
+
+    <!-- ============================================================
+         STUDY LOG PAGE (ตารางอ่านหนังสือ)
+         ============================================================ -->
+    <section id="page-studylog" class="page-section hidden">
+      <div class="page-header">
+        <h2>📖 ตารางอ่านหนังสือ</h2>
+        <p>วางแผนและติดตามว่าแต่ละสัปดาห์อ่านวิชาอะไร บทไหนไปแล้วบ้าง</p>
+      </div>
+      <div id="studylog-content"></div>
+    </section>
+
+    <!-- ============================================================
+         MOCK TEST PAGE
+         ============================================================ -->
+    <section id="page-mocktest" class="page-section hidden">
+      <div class="page-header">
+        <h2>🧪 Mock Test</h2>
+        <p>บันทึกผลสอบจำลองแต่ละครั้ง พร้อมดูพัฒนาการคะแนนของแต่ละวิชา</p>
+      </div>
+      <div id="mocktest-content"></div>
+    </section>
+
+    <!-- ============================================================
+         MISTAKE LOG PAGE (สมุดบันทึกข้อผิดพลาด)
+         ============================================================ -->
+    <section id="page-mistakelog" class="page-section hidden">
+      <div class="page-header">
+        <h2>📕 สมุดบันทึกข้อผิดพลาด</h2>
+        <p>จดข้อผิดพลาดที่เจอ พร้อมสาเหตุและเฉลยที่ถูกต้อง กันพลาดซ้ำ</p>
+      </div>
+      <div id="mistakelog-content"></div>
+    </section>
+
+    <!-- ============================================================
          CALENDAR PAGE
          ============================================================ -->
     <section id="page-calendar" class="page-section hidden">
@@ -186,6 +245,7 @@
         <h2>📅 ปฏิทิน TCAS70</h2>
         <p>กำหนดการสอบและรับสมัคร TCAS ปีการศึกษา 2569–2570</p>
       </div>
+      <img src="images/tcas70-calendar-infographic.jpg" alt="ปฏิทิน TCAS70 ฉบับเต็ม โดยเครือข่ายผู้ปกครองโรงเรียนโพธิสารพิทยากร" class="cal-hero-img">
       <div id="calendar-content"></div>
     </section>
 
@@ -203,14 +263,14 @@
     <section id="page-about" class="page-section hidden">
       <div class="page-header">
         <h2>ℹ️ เกี่ยวกับแอปพลิเคชัน</h2>
-        <p>TCAS70 Student Assessment Advisor — โรงเรียนโพธิสารพิทยากร</p>
+        <p>TCAS70: Student Advisor for Potisarnpittayakorn School — โรงเรียนโพธิสารพิทยากร</p>
       </div>
 
       <!-- App Logo Banner -->
       <div class="about-banner">
         <div class="about-banner-logo">🎓</div>
         <div class="about-banner-text">
-          <div class="about-banner-title">TCAS70 Student Assessment Advisor</div>
+          <div class="about-banner-title">TCAS70: Student Advisor for Potisarnpittayakorn School</div>
           <div class="about-banner-sub">โรงเรียนโพธิสารพิทยากร · ปีการศึกษา 2569–2570</div>
         </div>
         <div class="about-banner-version">v 1.0</div>
@@ -223,13 +283,21 @@
         </div>
         <div class="card-body">
           <p style="line-height:1.8;color:var(--text-secondary)">
-            <strong>TCAS70 Student Assessment Advisor</strong> คือแอปพลิเคชันที่พัฒนาขึ้นสำหรับนักเรียน
+            <strong>TCAS70: Student Advisor for Potisarnpittayakorn School</strong> คือแอปพลิเคชันที่พัฒนาขึ้นสำหรับนักเรียน
             โรงเรียนโพธิสารพิทยากร เพื่อรวบรวมข้อมูลเกี่ยวกับระบบ
             <strong>TCAS (Thai University Central Admission System)</strong>
-            และใช้เป็นข้อมูลอ้างอิงในการประเมินและแนะนำคณะ/มหาวิทยาลัยต่างๆ
-            ที่สอดคล้องกับ GPA และคะแนนสอบที่นักเรียนบันทึกไว้
-            รวมถึงสถิติคะแนนสูงสุด-ต่ำสุดย้อนหลัง จากฐานข้อมูล mytcas.com
+            และใช้เป็นเครื่องมือติดตามความพร้อม วางแผนเส้นทางสู่มหาวิทยาลัยตลอดปีการศึกษา 2570
+            ตั้งแต่การประเมิน/แนะนำคณะและมหาวิทยาลัยที่สอดคล้องกับ GPA และคะแนนสอบของนักเรียน
+            ไปจนถึงการวางแผนและบันทึกความพร้อมในแต่ละขั้นตอนของ TCAS
           </p>
+          <ul class="plain-list" style="margin-top:4px">
+            <li>🎯 ประเมิน/จัดอันดับคณะและมหาวิทยาลัยที่เหมาะสม พร้อมสถิติคะแนนสูงสุด–ต่ำสุดย้อนหลังจาก mytcas.com</li>
+            <li>📁 ติดตามความพร้อมรอบ Portfolio และระบบ TCASFolio ของแต่ละมหาวิทยาลัย</li>
+            <li>🗂️ My TCAS Planner — เป้าหมาย 10 อันดับ คะแนนที่ต้องเตรียม ปฏิทิน TCAS พร้อมบันทึก/แนบเอกสารรายกิจกรรม และวางแผนรอบที่จะสมัคร</li>
+            <li>📖 ตารางอ่านหนังสือ — วางแผนและติดตามการอ่านหนังสือรายสัปดาห์ ผูกกับปฏิทินสอบจริง</li>
+            <li>🧪 Mock Test — บันทึกผลสอบจำลองแต่ละครั้ง พร้อมกราฟพัฒนาการคะแนนของแต่ละวิชา</li>
+            <li>📕 สมุดบันทึกข้อผิดพลาด — จดข้อผิดพลาดจากการทำข้อสอบ พร้อมสาเหตุและเฉลยที่ถูกต้อง</li>
+          </ul>
           <div class="about-notice">
             <span class="about-notice-icon">⚠️</span>
             <div>
@@ -283,7 +351,7 @@
             <li>
               <span class="about-source-icon">📰</span>
               <div>
-                <strong>ข้อมูลการเปิดรับนักศึกษา TCAS69</strong>
+                <strong>ข่าวประกาศรับสมัคร TCAS70 รายมหาวิทยาลัย</strong>
                 <div><a href="https://www.eduzones.com" target="_blank" rel="noopener">eduzones.com</a></div>
               </div>
             </li>
@@ -308,7 +376,7 @@
             <div class="about-avatar about-avatar--dev">วฑ</div>
             <div class="about-dev-info">
               <div class="about-dev-name">นายวิฑูรย์ เจริญชัยไพบูลย์</div>
-              <div class="about-dev-role">ผู้ออกแบบและพัฒนาระบบ · TCAS70 Student Assessment Advisor</div>
+              <div class="about-dev-role">ผู้ออกแบบและพัฒนาระบบ · TCAS70: Student Advisor for Potisarnpittayakorn School</div>
             </div>
           </div>
         </div>
@@ -414,8 +482,8 @@
   </nav>
 
   <!-- Scripts -->
-  <script src="js/data.js?v=13"></script>
-  <script src="js/app.js?v=19"></script>
+  <script src="js/data.js?v=15"></script>
+  <script src="js/app.js?v=48"></script>
   <script>
     // Register Service Worker for PWA / offline support
     if ('serviceWorker' in navigator) {

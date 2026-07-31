@@ -1,7 +1,7 @@
 // TCAS70 PS Student Advisor — Service Worker
 // Enables offline usage and PWA installation
 
-const CACHE_NAME = 'tcas70-ps-v17';
+const CACHE_NAME = 'tcas70-ps-v48';
 const ASSETS = [
   './',
   './index.html',
@@ -10,6 +10,10 @@ const ASSETS = [
   './js/app.js',
   './images/ps-logo.png',
   './images/tcas70-logo.png',
+  './images/tcas70-calendar-infographic.jpg',
+  './images/tcas70-guide-summary-table.jpg',
+  './images/tcas70-guide-tgat-tpat.jpg',
+  './images/tcas70-guide-alevel.jpg',
   './images/icon-192.png',
   './images/icon-512.png',
   './images/student-avatar.svg',

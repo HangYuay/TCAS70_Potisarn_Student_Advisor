@@ -3920,43 +3920,64 @@ function renderRoundAll(area) {
 
 // ---- ROUND 1: Portfolio ----
 function renderRound1(area) {
-  const sd = state.studentData;
+  const sd   = state.studentData;
   const port = sd.portfolio || {};
   const gpa  = parseFloat(sd.gpa.cumulative) || 0;
   const prefs = getPreferences();
 
-  // Count portfolio items student has
   const portItems = [
-    { key:'camps',        label:'ค่าย / โครงการพิเศษ',   count:(port.camps||[]).length,        icon:'⛺' },
-    { key:'activities',   label:'กิจกรรมนอกหลักสูตร',     count:(port.activities||[]).length,   icon:'🎪' },
-    { key:'awards',       label:'รางวัล / เกียรติบัตร',    count:(port.awards||[]).length,       icon:'🏆' },
-    { key:'competitions', label:'การแข่งขัน / โอลิมปิก',  count:(port.competitions||[]).length, icon:'🥇' },
-    { key:'volunteer',    label:'จิตอาสา / บำเพ็ญประโยชน์',count:(port.volunteer||[]).length,   icon:'🤝' },
+    { key:'camps',        label:'ค่าย / โครงการพิเศษ',    count:(port.camps||[]).length,        icon:'⛺' },
+    { key:'activities',   label:'กิจกรรมนอกหลักสูตร',      count:(port.activities||[]).length,   icon:'🎪' },
+    { key:'awards',       label:'รางวัล / เกียรติบัตร',     count:(port.awards||[]).length,       icon:'🏆' },
+    { key:'competitions', label:'การแข่งขัน / โอลิมปิก',   count:(port.competitions||[]).length, icon:'🥇' },
+    { key:'volunteer',    label:'จิตอาสา / บำเพ็ญประโยชน์', count:(port.volunteer||[]).length,   icon:'🤝' },
   ];
   const totalCategories = portItems.filter(x => x.count > 0).length;
-  const totalItems = portItems.reduce((s, x) => s + x.count, 0);
-
+  const totalItems      = portItems.reduce((s, x) => s + x.count, 0);
   const portLevel = totalCategories >= 4 ? { label:'พอร์ตแข็งแกร่ง ✅', color:'#10B981', score:3 }
-    : totalCategories >= 2               ? { label:'พอร์ตพอใช้ ⚠️',    color:'#F59E0B', score:2 }
-    : totalCategories >= 1               ? { label:'พอร์ตน้อย ⚠️',      color:'#F97316', score:1 }
-    :                                      { label:'ยังไม่มีพอร์ต ❌',  color:'#EF4444', score:0 };
+    : totalCategories >= 2               ? { label:'พอร์ตพอใช้ ⚠️',     color:'#F59E0B', score:2 }
+    : totalCategories >= 1               ? { label:'พอร์ตน้อย ⚠️',       color:'#F97316', score:1 }
+    :                                      { label:'ยังไม่มีพอร์ต ❌',   color:'#EF4444', score:0 };
 
-  // Programs accepting round 1, sorted by GPA match
-  let r1Programs = TCAS_DATA.programs.filter(p => p.rounds.includes(1));
+  const r1Set    = new Set(TCAS_DATA.programs.filter(p => p.rounds.includes(1)).map(p => p.id));
+  const selected = prefs.filter(id => r1Set.has(id))
+                        .map(id => TCAS_DATA.programs.find(p => p.id === id)).filter(Boolean);
+  const needed   = Math.max(0, 10 - selected.length);
+  const fallbacks = getGpaRoundFallbacks(prefs, selected, gpa, 1, needed);
+  const totalCount = selected.length + fallbacks.length;
 
-  // Prioritize preferences
-  r1Programs.sort((a, b) => {
-    const ai = prefs.indexOf(a.id), bi = prefs.indexOf(b.id);
-    if (ai >= 0 && bi >= 0) return ai - bi;
-    if (ai >= 0) return -1;
-    if (bi >= 0) return 1;
-    return (parseFloat(a.minGPA)||0) - (parseFloat(b.minGPA)||0);
-  });
+  _r1ShownIds = [...selected.map(p => p.id), ...fallbacks.map(p => p.id)];
+  _r1SelectedCtx = selected;
+  _r1Area = area;
+  _r1PortScore = portLevel.score;
+
+  const sl = (text, count, color) =>
+    `<div class="pref-section-label" style="margin-top:16px;border-left:3px solid ${color};padding-left:8px;background:none">
+       ${text} <span style="font-weight:400;color:var(--text-muted);font-size:0.8rem">(${count} หลักสูตร)</span>
+     </div>`;
+
+  const selectedHtml = selected.length > 0
+    ? sl('🎓 คณะที่นักเรียนเลือกเอง', selected.length, 'var(--primary)')
+      + `<div class="round-assess-list" style="margin-top:8px">
+           ${selected.map(p => renderRoundAssessCard(p, 'round1', gpa, portLevel.score, prefs)).join('')}
+         </div>` : '';
+
+  const fallbackHtml = fallbacks.length > 0
+    ? sl('💡 คณะที่ระบบแนะนำเพิ่มเติม', fallbacks.length, 'var(--accent)')
+      + `<div class="round-assess-list" style="margin-top:8px">
+           ${fallbacks.map(p => renderRoundAssessCard(p, 'round1', gpa, portLevel.score, prefs)).join('')}
+         </div>` : '';
+
+  const emptyHtml = totalCount === 0
+    ? `<div class="empty-state" style="padding:32px 0">
+         <div class="empty-state-icon">📁</div>
+         <div class="empty-state-title">ยังไม่มีหลักสูตรที่จะประเมิน</div>
+         <div class="empty-state-desc">ไปที่หน้า <strong>เลือกสาขา</strong> เพื่อเพิ่มหลักสูตรที่สนใจก่อนนะครับ</div>
+       </div>` : '';
 
   area.innerHTML = `
-    <!-- Portfolio Summary -->
     <div class="round-assess-header" style="--rhc:#6366F1">
-      <div class="round-assess-title">📁 สรุปพอร์ตโฟลิโอของคุณ</div>
+      <div class="round-assess-title">📁 ประเมินรอบ 1 Portfolio</div>
       <div class="port-summary-grid">
         ${portItems.map(x => `
           <div class="port-summary-item ${x.count > 0 ? 'has-items' : 'no-items'}">
@@ -3968,20 +3989,48 @@ function renderRound1(area) {
       <div class="port-level-badge" style="color:${portLevel.color};border-color:${portLevel.color}40;background:${portLevel.color}10">
         ${portLevel.label} · รวม ${totalItems} รายการ ใน ${totalCategories} หมวด
       </div>
-      ${totalItems === 0 ? `
-        <div class="port-add-hint">
-          <button class="btn btn-outline btn-sm" onclick="navigate('portfolio')">✏️ เพิ่มข้อมูลพอร์ตโฟลิโอ</button>
-        </div>` : ''}
+      ${totalItems === 0 ? `<div class="port-add-hint"><button class="btn btn-outline btn-sm" onclick="navigate('portfolio')">✏️ เพิ่มข้อมูลพอร์ตโฟลิโอ</button></div>` : ''}
+      <div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px">
+        รวม <strong>${totalCount}/10</strong> หลักสูตร
+        ${selected.length > 0 ? ` · <strong style="color:var(--primary)">${selected.length} อันดับที่คุณเลือก</strong>` : ''}
+        ${fallbacks.length > 0 ? ` + <strong style="color:var(--accent)">${fallbacks.length} ที่ระบบแนะนำ</strong>` : ''}
+      </div>
     </div>
 
-    <div class="section-title mb-2">คณะที่รับรอบ 1 Portfolio (${r1Programs.length} สาขา)</div>
+    ${emptyHtml}${selectedHtml}${fallbackHtml}
 
-    ${prefs.filter(pid => r1Programs.find(p => p.id === pid)).length > 0 ? `
-      <div class="pref-section-label">🏆 10 อันดับที่คุณสนใจ</div>` : ''}
+    ${totalCount > 0 ? `
+    <div class="r3-expand-wrap" id="r1-expand-wrap">
+      <button class="r3-expand-btn" onclick="expandR1Extra()">
+        🔍 ดูหลักสูตรแนะนำเพิ่มเติม นอกเหนือจาก 10 อันดับ
+        <span class="r3-expand-sub">เฉพาะที่ GPAX ผ่านเกณฑ์ · แสดงทั้งหมดครั้งเดียว</span>
+      </button>
+    </div>
+    <div id="r1-extra-section"></div>` : ''}`;
 
-    <div class="round-assess-list">
-      ${r1Programs.map(p => renderRoundAssessCard(p, 'round1', gpa, portLevel.score, prefs)).join('')}
-    </div>`;
+  setupRoundBackToTop(area);
+}
+
+function expandR1Extra() {
+  const gpa    = parseFloat(state.studentData.gpa.cumulative) || 0;
+  const extras = getGpaRoundFallbacks(_r1ShownIds, _r1SelectedCtx, gpa, 1, 9999);
+  const extraSection = document.getElementById('r1-extra-section');
+  const expandWrap   = document.getElementById('r1-expand-wrap');
+  if (!extraSection) return;
+  if (extras.length === 0) {
+    extraSection.innerHTML = `<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:0.84rem">ไม่พบหลักสูตรแนะนำเพิ่มเติมที่ตรงเกณฑ์ GPAX ในขณะนี้</div>`;
+  } else {
+    const prefs = getPreferences();
+    extraSection.innerHTML = `
+      <div class="pref-section-label" style="margin-top:16px;border-left:3px solid var(--info);padding-left:8px;background:none">
+        🔍 หลักสูตรแนะนำเพิ่มเติม
+        <span style="font-weight:400;color:var(--text-muted);font-size:0.8rem">(${extras.length} หลักสูตร · GPAX ผ่านเกณฑ์ทั้งหมด)</span>
+      </div>
+      <div class="round-assess-list" style="margin-top:8px">
+        ${extras.map(p => renderRoundAssessCard(p, 'round1', state.studentData.gpa.cumulative || 0, _r1PortScore, prefs)).join('')}
+      </div>`;
+  }
+  expandWrap && (expandWrap.style.display = 'none');
 }
 
 // ---- ROUND 2: Quota ----
@@ -3990,94 +4039,229 @@ function renderRound2(area) {
   const gpa = parseFloat(sd.gpa.cumulative) || 0;
   const prefs = getPreferences();
 
-  let r2Programs = TCAS_DATA.programs.filter(p => p.rounds.includes(2));
-  r2Programs.sort((a, b) => {
-    const ai = prefs.indexOf(a.id), bi = prefs.indexOf(b.id);
-    if (ai >= 0 && bi >= 0) return ai - bi;
-    if (ai >= 0) return -1;
-    if (bi >= 0) return 1;
-    const aPassed = gpa >= (a.minGPA||0), bPassed = gpa >= (b.minGPA||0);
-    if (aPassed !== bPassed) return bPassed ? 1 : -1;
-    return (b.minGPA||0) - (a.minGPA||0);
-  });
+  const r2Set    = new Set(TCAS_DATA.programs.filter(p => p.rounds.includes(2)).map(p => p.id));
+  const selected = prefs.filter(id => r2Set.has(id))
+                        .map(id => TCAS_DATA.programs.find(p => p.id === id)).filter(Boolean);
+  const needed   = Math.max(0, 10 - selected.length);
+  const fallbacks = getGpaRoundFallbacks(prefs, selected, gpa, 2, needed);
+  const totalCount = selected.length + fallbacks.length;
 
-  const passed  = r2Programs.filter(p => gpa >= (p.minGPA||0)).length;
-  const failed  = r2Programs.length - passed;
+  _r2ShownIds = [...selected.map(p => p.id), ...fallbacks.map(p => p.id)];
+  _r2SelectedCtx = selected;
+  _r2Area = area;
+
+  const allShown = [...selected, ...fallbacks];
+  const passed = allShown.filter(p => gpa >= (parseFloat(p.minGPA)||0)).length;
+  const failed  = allShown.length - passed;
+
+  const sl = (text, count, color) =>
+    `<div class="pref-section-label" style="margin-top:16px;border-left:3px solid ${color};padding-left:8px;background:none">
+       ${text} <span style="font-weight:400;color:var(--text-muted);font-size:0.8rem">(${count} หลักสูตร)</span>
+     </div>`;
+
+  const selectedHtml = selected.length > 0
+    ? sl('🎓 คณะที่นักเรียนเลือกเอง', selected.length, 'var(--primary)')
+      + `<div class="round-assess-list" style="margin-top:8px">
+           ${selected.map(p => renderRoundAssessCard(p, 'round2', gpa, 0, prefs)).join('')}
+         </div>` : '';
+
+  const fallbackHtml = fallbacks.length > 0
+    ? sl('💡 คณะที่ระบบแนะนำเพิ่มเติม', fallbacks.length, 'var(--accent)')
+      + `<div class="round-assess-list" style="margin-top:8px">
+           ${fallbacks.map(p => renderRoundAssessCard(p, 'round2', gpa, 0, prefs)).join('')}
+         </div>` : '';
+
+  const emptyHtml = totalCount === 0
+    ? `<div class="empty-state" style="padding:32px 0">
+         <div class="empty-state-icon">🏷️</div>
+         <div class="empty-state-title">ยังไม่มีหลักสูตรที่จะประเมิน</div>
+         <div class="empty-state-desc">ไปที่หน้า <strong>เลือกสาขา</strong> เพื่อเพิ่มหลักสูตรที่สนใจก่อนนะครับ</div>
+       </div>` : '';
 
   area.innerHTML = `
     <div class="round-assess-header" style="--rhc:#10B981">
-      <div class="round-assess-title">🏷️ ผลประเมินรอบ 2 โควตา</div>
+      <div class="round-assess-title">🏷️ ประเมินรอบ 2 โควตา</div>
       <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
-        <div class="quota-summary-chip quota-pass">✅ GPA ผ่านเกณฑ์ ${passed} สาขา</div>
-        <div class="quota-summary-chip quota-fail">❌ GPA ต่ำกว่าเกณฑ์ ${failed} สาขา</div>
+        ${passed > 0 ? `<div class="quota-summary-chip quota-pass">✅ GPA ผ่านเกณฑ์ ${passed} สาขา</div>` : ''}
+        ${failed > 0 ? `<div class="quota-summary-chip quota-fail">❌ GPA ต่ำกว่าเกณฑ์ ${failed} สาขา</div>` : ''}
       </div>
       <div style="font-size:0.8rem;color:var(--text-muted);margin-top:6px">
-        ⚠️ รอบ 2 อาจมีเงื่อนไขเพิ่มเติม เช่น โควตาพื้นที่ หรือคะแนนเฉพาะวิชา — ตรวจสอบจากมหาวิทยาลัยด้วย
+        รวม <strong>${totalCount}/10</strong> หลักสูตร
+        ${selected.length > 0 ? ` · <strong style="color:var(--primary)">${selected.length} อันดับที่คุณเลือก</strong>` : ''}
+        ${fallbacks.length > 0 ? ` + <strong style="color:var(--accent)">${fallbacks.length} ที่ระบบแนะนำ</strong>` : ''}
+        · ⚠️ อาจมีเงื่อนไขโควตาพื้นที่เพิ่มเติม — ตรวจสอบจากมหาวิทยาลัยด้วย
       </div>
     </div>
 
-    ${prefs.filter(pid => r2Programs.find(p => p.id === pid)).length > 0 ? `
-      <div class="pref-section-label">🏆 10 อันดับที่คุณสนใจ</div>` : ''}
+    ${emptyHtml}${selectedHtml}${fallbackHtml}
 
-    <div class="round-assess-list">
-      ${r2Programs.map(p => renderRoundAssessCard(p, 'round2', gpa, 0, prefs)).join('')}
-    </div>`;
+    ${totalCount > 0 ? `
+    <div class="r3-expand-wrap" id="r2-expand-wrap">
+      <button class="r3-expand-btn" onclick="expandR2Extra()">
+        🔍 ดูหลักสูตรแนะนำเพิ่มเติม นอกเหนือจาก 10 อันดับ
+        <span class="r3-expand-sub">เฉพาะที่ GPAX ผ่านเกณฑ์ · แสดงทั้งหมดครั้งเดียว</span>
+      </button>
+    </div>
+    <div id="r2-extra-section"></div>` : ''}`;
+
+  setupRoundBackToTop(area);
 }
 
-// ---- ROUND 3: Admission ----
+function expandR2Extra() {
+  const gpa    = parseFloat(state.studentData.gpa.cumulative) || 0;
+  const extras = getGpaRoundFallbacks(_r2ShownIds, _r2SelectedCtx, gpa, 2, 9999);
+  const extraSection = document.getElementById('r2-extra-section');
+  const expandWrap   = document.getElementById('r2-expand-wrap');
+  if (!extraSection) return;
+  if (extras.length === 0) {
+    extraSection.innerHTML = `<div style="text-align:center;padding:24px 0;color:var(--text-muted);font-size:0.84rem">ไม่พบหลักสูตรแนะนำเพิ่มเติมที่ตรงเกณฑ์ GPAX ในขณะนี้</div>`;
+  } else {
+    const prefs = getPreferences();
+    extraSection.innerHTML = `
+      <div class="pref-section-label" style="margin-top:16px;border-left:3px solid var(--info);padding-left:8px;background:none">
+        🔍 หลักสูตรแนะนำเพิ่มเติม
+        <span style="font-weight:400;color:var(--text-muted);font-size:0.8rem">(${extras.length} หลักสูตร · GPAX ผ่านเกณฑ์ทั้งหมด)</span>
+      </div>
+      <div class="round-assess-list" style="margin-top:8px">
+        ${extras.map(p => renderRoundAssessCard(p, 'round2', gpa, 0, prefs)).join('')}
+      </div>`;
+  }
+  expandWrap && (expandWrap.style.display = 'none');
+}
+
+// Shared state for all round expand + back-to-top
+let _roundObserver = null;
+let _r1ShownIds = [], _r1SelectedCtx = [], _r1Area = null, _r1PortScore = 0;
+let _r2ShownIds = [], _r2SelectedCtx = [], _r2Area = null;
+let _r3ShownIds = [], _r3SelectedCtx = [], _r3Area = null;
+
+// ---- ROUND 3: Admission — two-group assessment, always 10 programs total ----
 function renderRound3(area) {
   const sd = state.studentData;
-  const gpa = parseFloat(sd.gpa.cumulative) || 0;
-  const prefs = getPreferences();
-  const interests = sd.interests || [];
-  const wishlist  = state.wishlist || [];
+  const studentScores = sd.scores || {};
 
-  let r3Programs = TCAS_DATA.programs.filter(p => p.rounds.includes(3));
+  // Student's own selections (filtered to R3-eligible programs, preserve order)
+  const prefs    = getPreferences();
+  const r3Set    = new Set(TCAS_DATA.programs.filter(p => p.rounds.includes(3)).map(p => p.id));
+  const selected = prefs.filter(id => r3Set.has(id))
+                        .map(id => TCAS_DATA.programs.find(p => p.id === id))
+                        .filter(Boolean);
 
-  // Sort: preferences first, then by score
-  const scored = r3Programs.map(p => ({
-    p, pct: Math.min(calculateMatchScore(p, sd).score, 100)
-  }));
-  scored.sort((a, b) => {
-    const ai = prefs.indexOf(a.p.id), bi = prefs.indexOf(b.p.id);
-    if (ai >= 0 && bi >= 0) return ai - bi;
-    if (ai >= 0) return -1;
-    if (bi >= 0) return 1;
-    return b.pct - a.pct;
-  });
+  // System fills remainder to reach exactly 10
+  const needed   = Math.max(0, 10 - selected.length);
+  const fallbacks = getFallbackRecommendations(prefs, studentScores, needed);
 
-  const hasPref = prefs.some(pid => r3Programs.find(p => p.id === pid));
+  const totalCount = selected.length + fallbacks.length;
+
+  const sectionLabel = (text, count, color) =>
+    `<div class="pref-section-label" style="margin-top:16px;border-left:3px solid ${color};padding-left:8px;background:none">
+       ${text} <span style="font-weight:400;color:var(--text-muted);font-size:0.8rem">(${count} หลักสูตร)</span>
+     </div>`;
+
+  const selectedHtml = selected.length > 0
+    ? sectionLabel('🎓 คณะที่นักเรียนเลือกเอง', selected.length, 'var(--primary)')
+      + `<div class="round-assess-list" style="margin-top:8px">
+           ${selected.map((p, i) => renderAssessmentCard(p, studentScores, i + 1, true)).join('')}
+         </div>`
+    : '';
+
+  const fallbackHtml = fallbacks.length > 0
+    ? sectionLabel('💡 คณะที่ระบบแนะนำเพิ่มเติม', fallbacks.length, 'var(--accent)')
+      + `<div class="round-assess-list" style="margin-top:8px">
+           ${fallbacks.map((p, i) => renderAssessmentCard(p, studentScores, selected.length + i + 1, false)).join('')}
+         </div>`
+    : '';
+
+  const emptyHtml = totalCount === 0
+    ? `<div class="empty-state" style="padding:40px 0">
+         <div class="empty-state-icon">📋</div>
+         <div class="empty-state-title">ยังไม่มีข้อมูลหลักสูตรที่จะประเมิน</div>
+         <div class="empty-state-desc">ไปที่หน้า <strong>เลือกสาขา</strong> เพื่อเพิ่มหลักสูตรที่สนใจก่อนนะครับ</div>
+       </div>`
+    : '';
+
+  // Store context for expand function
+  _r3ShownIds  = [...selected.map(p => p.id), ...fallbacks.map(p => p.id)];
+  _r3SelectedCtx = selected;
+  _r3Area = area;
 
   area.innerHTML = `
     <div class="round-assess-header" style="--rhc:#F59E0B">
-      <div class="round-assess-title">🎯 ประเมินรอบ 3 Admission</div>
+      <div class="round-assess-title">🎯 ประเมินโอกาส รอบ 3 Admission</div>
       <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px">
-        ใช้คะแนน TGAT / TPAT / A-Level ตามสัดส่วนที่แต่ละสาขากำหนด
-        ${prefs.length > 0 ? ` · <strong>10 อันดับที่เลือกไว้จะแสดงก่อน</strong>` : ''}
+        รวม <strong>${totalCount}/10</strong> หลักสูตร · ใช้คะแนน TGAT / TPAT / A-Level
+        ${selected.length > 0 ? ` · <strong style="color:var(--primary)">${selected.length} อันดับที่คุณเลือก</strong>` : ''}
+        ${fallbacks.length > 0 ? ` + <strong style="color:var(--accent)">${fallbacks.length} ที่ระบบแนะนำ</strong>` : ''}
       </div>
     </div>
 
-    <!-- Interest filter -->
-    <div class="interest-selector-card mb-3" style="padding:12px">
-      <div class="interest-chips" style="margin-top:0">
-        <button class="interest-chip ${!interests.length?'active':''}" onclick="clearInterests()">ทั้งหมด</button>
-        ${ALL_CATEGORIES.map(cat => {
-          const active = interests.includes(cat.id);
-          return `<button class="interest-chip ${active?'active':''}" onclick="toggleInterestAndRefresh('${cat.id}')">
-            ${cat.icon} ${cat.label}${active?'<span class="interest-chip-check">✓</span>':''}
-          </button>`;
-        }).join('')}
-      </div>
+    <div class="r3-disclaimer">
+      ⚠️ <strong>คำเตือน:</strong> การประเมินนี้ใช้เกณฑ์น้ำหนักคะแนนทั่วไปของ TCAS69
+      และข้อมูลผลคะแนนย้อนหลัง ไม่ใช่เกณฑ์อย่างเป็นทางการของแต่ละสถาบัน
+      ผลที่แสดงเป็นเพียงการ<em>ประมาณการโอกาส</em> ไม่ใช่การรับประกันผล
     </div>
 
-    ${hasPref ? `<div class="pref-section-label">🏆 10 อันดับที่คุณเลือกไว้</div>` : ''}
+    ${emptyHtml}${selectedHtml}${fallbackHtml}
 
-    <div class="round-assess-list">
-      ${scored
-        .filter(({p}) => !interests.length || interests.includes(p.category))
-        .map(({p, pct}) => renderRound3Card(p, pct, prefs, wishlist))
-        .join('')}
-    </div>`;
+    ${totalCount > 0 ? `
+    <div class="r3-expand-wrap" id="r3-expand-wrap">
+      <button class="r3-expand-btn" onclick="expandR3Extra()">
+        🔍 ดูหลักสูตรแนะนำเพิ่มเติม นอกเหนือจาก 10 อันดับ
+        <span class="r3-expand-sub">เฉพาะโอกาสปานกลางขึ้นไป · แสดงทั้งหมดครั้งเดียว</span>
+      </button>
+    </div>
+    <div id="r3-extra-section"></div>
+    ` : ''}`;
+
+  setupRoundBackToTop(area);
+}
+
+function setupRoundBackToTop(area) {
+  if (_roundObserver) { _roundObserver.disconnect(); _roundObserver = null; }
+  document.getElementById('round-back-top')?.remove();
+
+  const btn = document.createElement('button');
+  btn.id        = 'round-back-top';
+  btn.className = 'r3-back-top-btn';
+  btn.innerHTML = '↑ กลับขึ้นบน';
+  btn.onclick   = () => area.querySelector('.round-assess-header')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.body.appendChild(btn);
+
+  const sentinel = area.querySelector('.round-assess-header');
+  if (sentinel) {
+    _roundObserver = new IntersectionObserver(([e]) => {
+      btn.classList.toggle('r3-back-top-btn--visible', !e.isIntersecting);
+    }, { threshold: 0 });
+    _roundObserver.observe(sentinel);
+  }
+}
+
+function expandR3Extra() {
+  const studentScores = state.studentData.scores || {};
+  const extras = getExtraRecommendations(_r3ShownIds, _r3SelectedCtx, studentScores);
+
+  const extraSection = document.getElementById('r3-extra-section');
+  const expandWrap   = document.getElementById('r3-expand-wrap');
+  if (!extraSection) return;
+
+  if (extras.length === 0) {
+    extraSection.innerHTML = `
+      <div style="text-align:center;padding:24px 0 8px;color:var(--text-muted);font-size:0.84rem">
+        ไม่พบหลักสูตรแนะนำเพิ่มเติมที่ตรงเกณฑ์ในขณะนี้
+      </div>`;
+  } else {
+    const startRank = _r3ShownIds.length + 1;
+    extraSection.innerHTML = `
+      <div class="pref-section-label" style="margin-top:16px;border-left:3px solid var(--info);padding-left:8px;background:none">
+        🔍 หลักสูตรแนะนำเพิ่มเติม
+        <span style="font-weight:400;color:var(--text-muted);font-size:0.8rem">(${extras.length} หลักสูตร · โอกาสปานกลางขึ้นไปเท่านั้น)</span>
+      </div>
+      <div class="round-assess-list" style="margin-top:8px">
+        ${extras.map((p, i) => renderAssessmentCard(p, studentScores, startRank + i, false)).join('')}
+      </div>`;
+  }
+
+  expandWrap && (expandWrap.style.display = 'none');
 }
 
 function toggleInterestAndRefresh(catId) {
@@ -4165,95 +4349,147 @@ function renderRoundAssessCard(program, round, gpa, portScore, prefs) {
     </div>`;
 }
 
-// ---- Round 3 detailed score card ----
-function renderRound3Card(program, pct, prefs, wishlist) {
-  const uni = getUniversityById(program.universityId);
-  const inPref = prefs.includes(program.id);
-  const prefRank = prefs.indexOf(program.id) + 1;
-  const isLiked  = wishlist.includes(program.id);
-  const histPcts = getHistoricalMinPct(program);
-  const recentMin = histPcts[histPcts.length - 1];
-  const matchColor = pct >= 65 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#EF4444';
+// ---- Round 3 assessment card — probabilistic 5-tier system ----
+function renderAssessmentCard(program, studentScores, rank, isStudentPick) {
+  const uni      = getUniversityById(program.universityId);
+  const ws       = calculateWeightedScore(program, studentScores);
+  const hist     = TCAS_HISTORICAL_STATS[program.id];
 
-  let chanceLabel, chanceColor;
-  if (pct >= recentMin + 5)     { chanceLabel='✅ น่าจะผ่าน';   chanceColor='#10B981'; }
-  else if (pct >= recentMin - 5) { chanceLabel='⚠️ ชายขอบ';      chanceColor='#F59E0B'; }
-  else                           { chanceLabel='❌ ต่ำกว่าขั้นต่ำ'; chanceColor='#EF4444'; }
+  // Determine cutoff from most recent historical year
+  let cutoff = null;
+  if (hist) {
+    const lastYear = Object.keys(hist).sort().pop();
+    cutoff = hist[lastYear].min;
+  }
 
-  // Score breakdown
-  const criteria = program.criteria?.round3 || {};
-  const sd = state.studentData.scores;
-  const totalWeight = Object.values(criteria).reduce((a,b)=>a+b,0) || 1;
+  // Tier & display values
+  let tier, scoreDisplay, cutoffDisplay, diffDisplay, diffColor, chartSvg;
 
-  const scoreBreakdown = Object.entries(criteria).map(([subj, weight]) => {
-    const maxMap = {
-      tgat1:100, tgat2:100, tgat3:100,
-      tpat1:300, tpat2:100, tpat3:100, tpat4:100, tpat5:100,
-      amath1:100, amath2:100, ascience:100, asocial:100, athai:100, aeng:100,
-      aphy:100, achem:100, abio:100, ahist:100, afre:100, ager:100, ajpn:100, achn:100, akor:100
-    };
-    const nameMap = {
-      tgat1:'TGAT1', tgat2:'TGAT2', tgat3:'TGAT3',
-      tpat1:'TPAT1', tpat2:'TPAT2', tpat3:'TPAT3', tpat4:'TPAT4', tpat5:'TPAT5',
-      amath1:'คณิต1', amath2:'คณิต2', ascience:'วิทย์', asocial:'สังคม', athai:'ไทย', aeng:'อังกฤษ',
-      aphy:'ฟิสิกส์', achem:'เคมี', abio:'ชีวะ', ahist:'ประวัติ', afre:'ฝรั่งเศส', ager:'เยอรมัน',
-      ajpn:'ญี่ปุ่น', achn:'จีน', akor:'เกาหลี'
-    };
-    const raw = parseFloat(sd[subj]) || 0;
-    const max = maxMap[subj] || 100;
-    const pctSubj = raw / max * 100;
-    const contrib = (pctSubj * weight / totalWeight).toFixed(1);
-    return { subj, name: nameMap[subj]||subj, weight, raw, max, pctSubj, contrib };
-  });
+  if (ws.noData) {
+    // No scores entered at all
+    tier         = null;
+    scoreDisplay = '—';
+    cutoffDisplay = cutoff != null ? cutoff.toFixed(1) + '%' : '—';
+    diffDisplay  = '—';
+    diffColor    = 'var(--text-muted)';
+  } else if (ws.complete) {
+    const sc = ws.score;
+    tier         = cutoff != null ? getAssessmentTier(sc, cutoff) : null;
+    scoreDisplay = sc.toFixed(1) + '%';
+    cutoffDisplay = cutoff != null ? cutoff.toFixed(1) + '%' : '—';
+    if (cutoff != null) {
+      const d = sc - cutoff;
+      diffDisplay = (d >= 0 ? '+' : '') + d.toFixed(1) + '%';
+      diffColor   = d >= 0 ? '#059669' : '#DC2626';
+    } else {
+      diffDisplay = '—'; diffColor = 'var(--text-muted)';
+    }
+    chartSvg = hist ? buildSparklineSVG(program.id, sc, tier?.color || '#1A3A6B') : '';
+  } else {
+    // Partial scores
+    const sc = ws.partialKnown;
+    tier         = null;
+    scoreDisplay = sc.toFixed(1) + '%*';
+    cutoffDisplay = cutoff != null ? cutoff.toFixed(1) + '%' : '—';
+    if (cutoff != null) {
+      const d = sc - cutoff;
+      diffDisplay = (d >= 0 ? '+' : '') + d.toFixed(1) + '%*';
+      diffColor   = d >= 0 ? '#059669' : '#DC2626';
+    } else {
+      diffDisplay = '—'; diffColor = 'var(--text-muted)';
+    }
+    chartSvg = hist ? buildSparklineSVG(program.id, sc, '#1A3A6B') : '';
+  }
+
+  // Score comparison row cells
+  const scoreCmp = `
+    <div class="r3-score-cmp">
+      <div class="r3-score-cell">
+        <div class="r3-score-val">${scoreDisplay}</div>
+        <div class="r3-score-lbl">คะแนนของฉัน</div>
+      </div>
+      <div class="r3-score-cell r3-score-cell--mid">
+        <div class="r3-score-val">${cutoffDisplay}</div>
+        <div class="r3-score-lbl">เกณฑ์ขั้นต่ำ TCAS69</div>
+      </div>
+      <div class="r3-score-cell">
+        <div class="r3-score-val" style="color:${diffColor}">${diffDisplay}</div>
+        <div class="r3-score-lbl">ส่วนต่าง</div>
+      </div>
+    </div>`;
+
+  // Missing subjects row (partial)
+  let partialNote = '';
+  if (!ws.complete && !ws.noData && ws.missingSubjs?.length > 0) {
+    const req = cutoff != null ? calcPartialRequirement(ws, cutoff) : null;
+    const missList = ws.missingSubjs.map(m => m.label).join(', ');
+    partialNote = `<div class="r3-partial-note">
+      * ยังไม่มีคะแนน: ${missList}
+      ${req && req.possible && !req.alreadySufficient
+        ? `· ต้องทำได้ <strong style="color:var(--primary)">≥ ${req.requiredPct.toFixed(0)}%</strong> ในวิชาที่เหลือจึงจะถึงเกณฑ์`
+        : req && !req.possible && !req.alreadySufficient
+          ? `· คะแนนที่ทำแล้วยังไม่พอถึงเกณฑ์แม้ได้เต็มทุกวิชาที่เหลือ`
+          : ''}
+    </div>`;
+  }
+
+  // Score breakdown details (collapsible)
+  const criteria = TCAS_CATEGORY_CRITERIA[program.category] || {};
+  const bdEntries = Object.entries(criteria);
+  let breakdownHtml = '';
+  if (bdEntries.length > 0) {
+    breakdownHtml = `<details class="score-breakdown-details">
+      <summary>สัดส่วนคะแนน ${bdEntries.length} วิชา (อ้างอิงเกณฑ์ทั่วไป TCAS69)</summary>
+      <div class="score-breakdown-grid">
+        ${bdEntries.map(([subj, weight]) => {
+          const max = SCORE_MAX[subj] || 100;
+          const raw = parseFloat(studentScores[subj]);
+          const hasScore = !isNaN(raw) && raw > 0;
+          const contrib  = hasScore ? ((raw / max) * weight).toFixed(1) : null;
+          return `<div class="score-bd-item">
+            <div class="score-bd-name">${SCORE_LABEL[subj]||subj} <span style="color:var(--text-muted)">${weight}%</span></div>
+            <div class="score-bd-val ${hasScore?'':'no-score'}">${hasScore ? raw+'/'+max : '—'}</div>
+            <div class="score-bd-contrib" style="color:${hasScore?'#6366F1':'var(--text-muted)'}">${contrib ? '+'+contrib+'%' : '—'}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </details>`;
+  }
+
+  const tierBadge = tier
+    ? `<div class="round-chance-badge" style="color:${tier.color};border-color:${tier.color}40;background:${tier.bg};font-size:0.72rem;font-weight:700">${tier.label}</div>`
+    : ws.noData
+      ? `<div class="round-chance-badge" style="color:var(--text-muted);border-color:var(--border);background:var(--surface-2);font-size:0.72rem">ยังไม่มีคะแนน</div>`
+      : `<div class="round-chance-badge" style="color:#D97706;border-color:#D97706;background:#FEF3C7;font-size:0.72rem">คะแนนบางส่วน</div>`;
+
+  const rankBadgeBg = isStudentPick ? 'var(--primary)' : 'var(--accent)';
+  const rankIcon    = isStudentPick ? '' : '💡 ';
 
   return `
-    <div class="round3-card ${inPref ? 'round-assess-card--pref' : ''}">
-      ${inPref ? `<div class="pref-rank-label" style="background:#F59E0B">อันดับ ${prefRank}</div>` : ''}
-      ${isLiked && !inPref ? `<div class="pref-rank-label" style="background:#EC4899">❤️ กดใจ</div>` : ''}
-      <div class="round-assess-card-header">
-        <span class="pref-uni-tag" style="background:${uni.color};color:#fff;font-size:0.65rem;padding:1px 6px;border-radius:4px;font-weight:700;white-space:nowrap">${uni.shortName}</span>
+    <div class="round3-card ${isStudentPick ? 'round-assess-card--pref' : 'r3-card--rec'}">
+      <div class="pref-rank-label" style="background:${rankBadgeBg}">${rankIcon}#${rank}</div>
+      <div class="round-assess-card-header" style="align-items:flex-start">
+        <span class="pref-uni-tag" style="background:${uni.color};color:#fff;font-size:0.65rem;padding:2px 7px;border-radius:4px;font-weight:700;white-space:nowrap;flex-shrink:0;margin-top:2px">${uni.shortName}</span>
         <div style="flex:1;min-width:0">
-          <div class="round-assess-prog-name">${program.program}</div>
-          <div class="round-assess-prog-sub">${program.faculty} · GPA ≥ ${program.minGPA}</div>
+          <div class="r3-faculty-name">${program.faculty}</div>
+          <div class="round-assess-prog-name" style="margin-top:2px">${program.program}</div>
+          <div class="r3-prog-full">${program.programFull || ''}</div>
         </div>
-        <div class="round-chance-badge" style="color:${chanceColor};border-color:${chanceColor}40;background:${chanceColor}10;font-size:0.7rem">
-          ${chanceLabel}
-        </div>
+        ${tierBadge}
       </div>
 
-      <!-- Score bar -->
-      <div style="margin:8px 0 4px">
-        <div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:3px">
-          <span>ความเหมาะสม</span>
-          <strong style="color:${matchColor}">${pct}% <span style="font-weight:400;color:var(--text-muted)">(เกณฑ์ ≈${recentMin}%)</span></strong>
-        </div>
-        <div class="match-bar" style="height:6px">
-          <div class="match-bar-fill" style="width:${pct}%;background:${matchColor}"></div>
-        </div>
-      </div>
+      ${scoreCmp}
+      ${partialNote}
 
-      <!-- Score breakdown (collapsible) -->
-      ${scoreBreakdown.length > 0 ? `
-        <details class="score-breakdown-details">
-          <summary>ดูรายละเอียดคะแนน (${scoreBreakdown.length} วิชา)</summary>
-          <div class="score-breakdown-grid">
-            ${scoreBreakdown.map(s => `
-              <div class="score-bd-item">
-                <div class="score-bd-name">${s.name} <span style="color:var(--text-muted)">(${s.weight}%)</span></div>
-                <div class="score-bd-val ${s.raw > 0 ? '' : 'no-score'}">
-                  ${s.raw > 0 ? `${s.raw}/${s.max}` : '—'}
-                </div>
-                <div class="score-bd-contrib" style="color:${s.raw>0?'#6366F1':'var(--text-muted)'}">
-                  ${s.raw > 0 ? `+${s.contrib}%` : '—'}
-                </div>
-              </div>`).join('')}
-          </div>
-        </details>` : ''}
+      ${chartSvg ? `<div class="r3-chart-wrap">${chartSvg}</div>` : ''}
 
-      <div style="text-align:right;margin-top:4px">
+      ${breakdownHtml}
+
+      <div class="r3-card-footer">
+        <span class="r3-criteria-badge">📋 อ้างอิงเกณฑ์ทั่วไป TCAS69</span>
         <button class="btn-link" style="font-size:0.75rem" onclick="showProgramDetail('${program.id}')">รายละเอียด →</button>
       </div>
-    </div>`
+    </div>`;
 }
 
 function clearInterests() {
@@ -4311,7 +4547,7 @@ function renderRecRankCard(program, result, rank, interests = [], wishlist = [])
           <div class="rec-rank-name">${program.program}</div>
           ${pinBadges ? `<div class="rec-pin-badges">${pinBadges}</div>` : ''}
         </div>
-        <div class="rec-rank-sub">${program.faculty} · ${program.duration} · GPA ≥ ${program.minGPA}</div>
+        <div class="rec-rank-sub">${program.faculty} · ${program.duration} ปี${program.minGPA > 0 ? ' · GPA ≥ ' + program.minGPA : ''}</div>
         <div class="match-bar-wrap" style="margin-top:8px">
           <div class="match-bar-label" style="font-size:0.78rem">
             <span>ความเหมาะสม</span>
@@ -4332,7 +4568,7 @@ function renderRecRankCard(program, result, rank, interests = [], wishlist = [])
       </div>
       <div class="rec-rank-meta">
         ${statusBadge}
-        <span class="comp-chip" style="color:${compColor[program.competition] || '#94A3B8'}">${program.competition}</span>
+        ${program.competition ? `<span class="comp-chip" style="color:${compColor[program.competition] || '#94A3B8'}">${program.competition}</span>` : ''}
         <div class="round-tags-mini">
           ${program.rounds.map(r => { const RN=['Portfolio','โควตา','Admission','รับตรง']; return `<span class="round-tag-xs" style="background:${TCAS_DATA.rounds[r-1].color}">${RN[r-1]}</span>`; }).join('')}
         </div>

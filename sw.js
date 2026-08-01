@@ -1,7 +1,7 @@
 // TCAS70 PS Student Advisor — Service Worker
 // Enables offline usage and PWA installation
 
-const CACHE_NAME = 'tcas70-ps-v51';
+const CACHE_NAME = 'tcas70-ps-v56';
 const ASSETS = [
   './',
   './index.html',
@@ -24,7 +24,7 @@ const ASSETS = [
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(ASSETS);
+      return cache.addAll(ASSETS.map(url => new Request(url, { cache: 'reload' })));
     })
   );
   self.skipWaiting();

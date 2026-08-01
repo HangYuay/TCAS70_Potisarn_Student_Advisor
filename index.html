@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#1A3A6B">
+  <meta name="apple-mobile-web-app-title" content="TCAS70 PS">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="images/icon-180.png">
+  <title>TCAS70: Student Advisor for Potisarnpittayakorn School</title>
+  <link rel="stylesheet" href="css/style.css?v=25">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='12' fill='%231B3BAE'/><polygon points='50,5 82,18 88,46 50,48 12,46 18,18' fill='%231B3BAE'/><rect x='12' y='46' width='18' height='36' fill='%231B3BAE'/><rect x='70' y='46' width='18' height='36' fill='%231B3BAE'/><path d='M50,8 C62,6 82,16 86,36 C89,50 84,66 70,76 C62,82 54,86 51,89 L50,92 L49,89 C46,86 38,82 30,76 C16,66 11,50 14,36 C18,16 38,6 50,8Z' fill='white'/><path d='M50,12 C60,10 78,20 82,38 C85,52 80,67 67,77 C59,83 52,87 50.5,90 L50,92 L49.5,90 C48,87 41,83 33,77 C20,67 15,52 18,38 C22,20 40,10 50,12Z' fill='%23D61A8E'/></svg>">
+</head>
+<body>
+
+  <!-- ============================================================
+       HEADER
+       ============================================================ -->
+  <header class="app-header" id="app-header">
+    <!-- Logos -->
+    <div class="header-logos">
+      <!-- PS School Logo (header compact) — placed first, prominent white bg -->
+      <div class="ps-header-badge" title="โรงเรียนโพธิสารพิทยากร">
+        <img src="images/ps-logo.png" alt="โรงเรียนโพธิสารพิทยากร" class="ps-header-logo-img">
+        <div class="ps-header-text">
+          <span class="ps-header-line1">โรงเรียน</span>
+          <span class="ps-header-line2">โพธิสารพิทยากร</span>
+        </div>
+      </div>
+
+      <div class="logo-divider"></div>
+
+      <!-- TCAS70 Logo (header compact) -->
+      <div class="tcas-logo-badge" title="TCAS70 - Thai University Central Admission System">
+        <img src="images/tcas70-logo.png" alt="TCAS70" class="tcas70-logo-img">
+      </div>
+    </div>
+
+    <!-- Title -->
+    <div class="header-title">
+      <h1>TCAS70: Student Advisor for Potisarnpittayakorn School</h1>
+      <p>ระบบแนะแนวการศึกษาต่อระดับอุดมศึกษา ปีการศึกษา 2570</p>
+    </div>
+
+    <!-- Header Actions -->
+    <div class="header-actions">
+      <button class="btn btn-white-outline btn-sm header-export-btn" onclick="exportSummary()"
+        title="ส่งออกรายงาน" style="display:flex;align-items:center;gap:5px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Export
+      </button>
+      <div class="student-chip" id="student-chip">
+        <div class="student-avatar" id="student-avatar"><img src="images/student-avatar.svg" alt="avatar" class="avatar-img"></div>
+        <span class="student-chip-name" id="student-chip-name">นักเรียน</span>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="confirmReset()" title="รีเซ็ตข้อมูล"
+        style="color:rgba(255,255,255,0.6);padding:6px 8px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.36"/>
+        </svg>
+      </button>
+      <!-- Mobile Menu Toggle -->
+      <button class="mobile-menu-toggle" id="mobile-menu-toggle" onclick="toggleMobileSidebar()" title="เมนู">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Mobile Sidebar Overlay -->
+  <div class="mobile-sidebar-overlay" id="mobile-sidebar-overlay" onclick="closeMobileSidebar()"></div>
+
+  <!-- ============================================================
+       SIDEBAR
+       ============================================================ -->
+  <nav class="app-sidebar" id="app-sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">หน้าหลัก</div>
+      <div class="nav-item active" data-page="dashboard">
+        <span class="nav-icon">🏠</span><span>Dashboard</span>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">ข้อมูลนักเรียน</div>
+      <div class="nav-item" data-page="profile">
+        <span class="nav-icon">👤</span><span>โปรไฟล์</span>
+      </div>
+      <div class="nav-item" data-page="scores">
+        <span class="nav-icon">📊</span><span>คะแนนสอบ</span>
+      </div>
+      <div class="nav-item" data-page="portfolio">
+        <span class="nav-icon">🏆</span><span>ผลงาน & กิจกรรม</span>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">ค้นหา & แนะนำ</div>
+      <div class="nav-item" data-page="university">
+        <span class="nav-icon">🔍</span><span>ค้นหาคณะ/มหาวิทยาลัย</span>
+      </div>
+      <div class="nav-item" data-page="recommend">
+        <span class="nav-icon">🎯</span><span>คณะที่เหมาะกับคุณ</span>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">วางแผน</div>
+      <div class="nav-item" data-page="planner">
+        <span class="nav-icon">🗂️</span><span>My TCAS Planner</span>
+      </div>
+      <div class="nav-item" data-page="studylog">
+        <span class="nav-icon">📖</span><span>ตารางอ่านหนังสือ</span>
+      </div>
+      <div class="nav-item" data-page="mocktest">
+        <span class="nav-icon">🧪</span><span>Mock Test</span>
+      </div>
+      <div class="nav-item" data-page="mistakelog">
+        <span class="nav-icon">📕</span><span>สมุดบันทึกข้อผิดพลาด</span>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">ข้อมูลอ้างอิง</div>
+      <div class="nav-item" data-page="calendar">
+        <span class="nav-icon">📅</span><span>ปฏิทิน TCAS70</span>
+      </div>
+      <div class="nav-item" data-page="guide">
+        <span class="nav-icon">📋</span><span>เกณฑ์ TCAS70</span>
+      </div>
+      <div class="nav-item" data-page="about">
+        <span class="nav-icon">ℹ️</span><span>เกี่ยวกับ</span>
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <p>TCAS70 Student Advisor<br>โรงเรียนโพธิสารพิทยากร<br>ปีการศึกษา 2569–2570</p>
+    </div>
+  </nav>
+
+  <!-- Update notification banner (hidden until new version detected) -->
+  <div id="update-banner" class="update-banner hidden">
+    <span class="update-banner-icon">🔔</span>
+    <div class="update-banner-text">
+      <strong>แอปอัปเดตข้อมูลแล้ว</strong>
+      <span id="update-banner-msg"></span>
+    </div>
+    <button class="update-banner-close" onclick="dismissUpdateBanner()">✕</button>
+  </div>
+
+  <!-- ============================================================
+       MAIN CONTENT
+       ============================================================ -->
+  <main class="app-main" id="app-main">
+
+    <section id="page-dashboard" class="page-section">
+      <div class="page-header">
+        <h2>🏠 Dashboard</h2>
+        <p>ภาพรวมข้อมูลและคำแนะนำสำหรับคุณ</p>
+      </div>
+      <div id="dashboard-content"></div>
+    </section>
+
+    <section id="page-profile" class="page-section hidden">
+      <div class="page-header">
+        <h2>👤 โปรไฟล์นักเรียน</h2>
+        <p>ข้อมูลส่วนตัวและเป้าหมายการศึกษา</p>
+      </div>
+      <div id="profile-content"></div>
+    </section>
+
+    <section id="page-scores" class="page-section hidden">
+      <div class="page-header">
+        <h2>📊 คะแนนสอบ</h2>
+        <p>GPA, TGAT, TPAT และ A-Level สำหรับ TCAS70</p>
+      </div>
+      <div id="scores-content"></div>
+    </section>
+
+    <section id="page-portfolio" class="page-section hidden">
+      <div class="page-header">
+        <h2>🏆 ผลงาน & กิจกรรม</h2>
+        <p>ค่าย รางวัล การแข่งขัน กิจกรรม และงานอาสาสมัคร</p>
+      </div>
+      <div id="portfolio-content"></div>
+    </section>
+
+    <section id="page-university" class="page-section hidden">
+      <div class="page-header">
+        <h2>🔍 ค้นหาคณะ/มหาวิทยาลัย</h2>
+        <p>สำรวจสาขาและเกณฑ์การรับสมัคร TCAS70 ของทุกมหาวิทยาลัย</p>
+      </div>
+      <div id="university-content"></div>
+    </section>
+
+    <section id="page-recommend" class="page-section hidden">
+      <div class="page-header">
+        <h2>🎯 คณะที่เหมาะกับคุณ</h2>
+        <p>คำแนะนำส่วนตัวจากระบบ AI อิงข้อมูล GPA และคะแนนสอบของคุณ</p>
+      </div>
+      <div id="recommend-content"></div>
+    </section>
+
+    <!-- ============================================================
+         MY TCAS PLANNER PAGE
+         ============================================================ -->
+    <section id="page-planner" class="page-section hidden">
+      <div class="page-header">
+        <h2>🗂️ My TCAS Planner</h2>
+        <p>รวมแผนของคุณไว้ที่เดียว เป้าหมาย คะแนน กำหนดการ และรอบที่จะสมัคร</p>
+      </div>
+      <div id="planner-content"></div>
+    </section>
+
+    <!-- ============================================================
+         STUDY LOG PAGE (ตารางอ่านหนังสือ)
+         ============================================================ -->
+    <section id="page-studylog" class="page-section hidden">
+      <div class="page-header">
+        <h2>📖 ตารางอ่านหนังสือ</h2>
+        <p>วางแผนและติดตามว่าแต่ละสัปดาห์อ่านวิชาอะไร บทไหนไปแล้วบ้าง</p>
+      </div>
+      <div id="studylog-content"></div>
+    </section>
+
+    <!-- ============================================================
+         MOCK TEST PAGE
+         ============================================================ -->
+    <section id="page-mocktest" class="page-section hidden">
+      <div class="page-header">
+        <h2>🧪 Mock Test</h2>
+        <p>บันทึกผลสอบจำลองแต่ละครั้ง พร้อมดูพัฒนาการคะแนนของแต่ละวิชา</p>
+      </div>
+      <div id="mocktest-content"></div>
+    </section>
+
+    <!-- ============================================================
+         MISTAKE LOG PAGE (สมุดบันทึกข้อผิดพลาด)
+         ============================================================ -->
+    <section id="page-mistakelog" class="page-section hidden">
+      <div class="page-header">
+        <h2>📕 สมุดบันทึกข้อผิดพลาด</h2>
+        <p>จดข้อผิดพลาดที่เจอ พร้อมสาเหตุและเฉลยที่ถูกต้อง กันพลาดซ้ำ</p>
+      </div>
+      <div id="mistakelog-content"></div>
+    </section>
+
+    <!-- ============================================================
+         CALENDAR PAGE
+         ============================================================ -->
+    <section id="page-calendar" class="page-section hidden">
+      <div class="page-header">
+        <h2>📅 ปฏิทิน TCAS70</h2>
+        <p>กำหนดการสอบและรับสมัคร TCAS ปีการศึกษา 2569–2570</p>
+      </div>
+      <img src="images/tcas70-calendar-infographic.jpg" alt="ปฏิทิน TCAS70 ฉบับเต็ม โดยเครือข่ายผู้ปกครองโรงเรียนโพธิสารพิทยากร" class="cal-hero-img">
+      <div id="calendar-content"></div>
+    </section>
+
+    <section id="page-guide" class="page-section hidden">
+      <div class="page-header">
+        <h2>📋 เกณฑ์ TCAS70</h2>
+        <p>ข้อมูลการรับสมัครแต่ละรอบ ปีการศึกษา 2570</p>
+      </div>
+      <div id="guide-content"></div>
+    </section>
+
+    <!-- ============================================================
+         ABOUT PAGE
+         ============================================================ -->
+    <section id="page-about" class="page-section hidden">
+      <div class="page-header">
+        <h2>ℹ️ เกี่ยวกับแอปพลิเคชัน</h2>
+        <p>TCAS70: Student Advisor for Potisarnpittayakorn School — โรงเรียนโพธิสารพิทยากร</p>
+      </div>
+
+      <!-- App Logo Banner -->
+      <div class="about-banner">
+        <div class="about-banner-logo">🎓</div>
+        <div class="about-banner-text">
+          <div class="about-banner-title">TCAS70: Student Advisor for Potisarnpittayakorn School</div>
+          <div class="about-banner-sub">โรงเรียนโพธิสารพิทยากร · ปีการศึกษา 2569–2570</div>
+        </div>
+        <div class="about-banner-version" id="about-version-badge">v 2.0</div>
+      </div>
+
+      <!-- Purpose -->
+      <div class="card" style="margin-top:16px">
+        <div class="card-header">
+          <h3 class="card-title">🎯 จุดประสงค์ของแอปพลิเคชัน</h3>
+        </div>
+        <div class="card-body">
+          <p style="line-height:1.8;color:var(--text-secondary)">
+            <strong>TCAS70: Student Advisor for Potisarnpittayakorn School</strong> คือแอปพลิเคชันที่พัฒนาขึ้นสำหรับนักเรียน
+            โรงเรียนโพธิสารพิทยากร เพื่อรวบรวมข้อมูลเกี่ยวกับระบบ
+            <strong>TCAS (Thai University Central Admission System)</strong>
+            และใช้เป็นเครื่องมือติดตามความพร้อม วางแผนเส้นทางสู่มหาวิทยาลัยตลอดปีการศึกษา 2570
+            ตั้งแต่การประเมิน/แนะนำคณะและมหาวิทยาลัยที่สอดคล้องกับ GPA และคะแนนสอบของนักเรียน
+            ไปจนถึงการวางแผนและบันทึกความพร้อมในแต่ละขั้นตอนของ TCAS
+          </p>
+          <ul class="plain-list" style="margin-top:4px">
+            <li>🎯 ประเมิน/จัดอันดับคณะและมหาวิทยาลัยที่เหมาะสม พร้อมสถิติคะแนนสูงสุด–ต่ำสุดย้อนหลังจาก mytcas.com</li>
+            <li>📁 ติดตามความพร้อมรอบ Portfolio และระบบ TCASFolio ของแต่ละมหาวิทยาลัย</li>
+            <li>🗂️ My TCAS Planner — เป้าหมาย 10 อันดับ คะแนนที่ต้องเตรียม ปฏิทิน TCAS พร้อมบันทึก/แนบเอกสารรายกิจกรรม และวางแผนรอบที่จะสมัคร</li>
+            <li>📖 ตารางอ่านหนังสือ — วางแผนและติดตามการอ่านหนังสือรายสัปดาห์ ผูกกับปฏิทินสอบจริง</li>
+            <li>🧪 Mock Test — บันทึกผลสอบจำลองแต่ละครั้ง พร้อมกราฟพัฒนาการคะแนนของแต่ละวิชา</li>
+            <li>📕 สมุดบันทึกข้อผิดพลาด — จดข้อผิดพลาดจากการทำข้อสอบ พร้อมสาเหตุและเฉลยที่ถูกต้อง</li>
+          </ul>
+          <div class="about-notice">
+            <span class="about-notice-icon">⚠️</span>
+            <div>
+              <strong style="color:#92400E">ข้อสำคัญที่ควรทราบ</strong>
+              <p style="margin:6px 0 0;color:#92400E;font-size:0.87rem;line-height:1.7">
+                คำแนะนำทั้งหมดจากแอปพลิเคชันนี้เป็น <strong>เพียงข้อมูลอ้างอิงเท่านั้น</strong>
+                ไม่สามารถรับรองผลการยื่นสมัครเข้าศึกษาในมหาวิทยาลัยได้
+                นักเรียนควรตรวจสอบข้อมูลเกณฑ์การรับสมัครอย่างเป็นทางการจากเว็บไซต์ของแต่ละมหาวิทยาลัย
+                และระบบ TCAS โดยตรงก่อนตัดสินใจสมัคร
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- References -->
+      <div class="card" style="margin-top:14px">
+        <div class="card-header">
+          <h3 class="card-title">📚 แหล่งข้อมูลอ้างอิง</h3>
+        </div>
+        <div class="card-body">
+          <ul class="about-sources-list">
+            <li>
+              <span class="about-source-icon">🌐</span>
+              <div>
+                <strong>ระบบ TCAS (Thai University Central Admission System)</strong>
+                <div><a href="https://www.mytcas.com" target="_blank" rel="noopener">mytcas.com</a></div>
+              </div>
+            </li>
+            <li>
+              <span class="about-source-icon">📊</span>
+              <div>
+                <strong>สถิติคะแนนสูงสุด–ต่ำสุด TCAS65–69</strong>
+                <div><a href="https://www.mytcas.com/stat/" target="_blank" rel="noopener">mytcas.com/stat</a></div>
+              </div>
+            </li>
+            <li>
+              <span class="about-source-icon">🏫</span>
+              <div>
+                <strong>เกณฑ์คะแนน Admission &amp; ข้อมูลรอบต่างๆ</strong>
+                <div><a href="https://www.smartmathpro.com" target="_blank" rel="noopener">smartmathpro.com</a></div>
+              </div>
+            </li>
+            <li>
+              <span class="about-source-icon">🔍</span>
+              <div>
+                <strong>ข้อมูล TCAS แต่ละสาขาวิชา</strong>
+                <div><a href="https://tcas.in.th" target="_blank" rel="noopener">tcas.in.th (TCAS Starter)</a></div>
+              </div>
+            </li>
+            <li>
+              <span class="about-source-icon">📰</span>
+              <div>
+                <strong>ข่าวประกาศรับสมัคร TCAS70 รายมหาวิทยาลัย</strong>
+                <div><a href="https://www.eduzones.com" target="_blank" rel="noopener">eduzones.com</a></div>
+              </div>
+            </li>
+            <li>
+              <span class="about-source-icon">🏛️</span>
+              <div>
+                <strong>ข้อมูลหลักสูตรและเกณฑ์อย่างเป็นทางการ</strong>
+                <div>เว็บไซต์อย่างเป็นทางการของแต่ละมหาวิทยาลัย</div>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Developer -->
+      <div class="card" style="margin-top:14px">
+        <div class="card-header">
+          <h3 class="card-title">👨‍💻 ผู้พัฒนาแอปพลิเคชัน</h3>
+        </div>
+        <div class="card-body">
+          <div class="about-dev-card">
+            <div class="about-avatar about-avatar--dev">วฑ</div>
+            <div class="about-dev-info">
+              <div class="about-dev-name">นายวิฑูรย์ เจริญชัยไพบูลย์</div>
+              <div class="about-dev-role">ผู้ออกแบบและพัฒนาระบบ · TCAS70: Student Advisor for Potisarnpittayakorn School</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Version Log -->
+      <div class="card" style="margin-top:14px" id="version-log-card">
+        <div class="card-header">
+          <h3 class="card-title">📋 Version Log</h3>
+        </div>
+        <div class="card-body" id="version-log-body">
+          <!-- rendered by renderVersionLog() in app.js -->
+        </div>
+      </div>
+
+      <!-- Team -->
+      <div class="card" style="margin-top:14px;margin-bottom:24px">
+        <div class="card-header">
+          <h3 class="card-title">🤝 คณะทำงานผู้ร่วมทดสอบและให้คำแนะนำ</h3>
+        </div>
+        <div class="card-body">
+          <p style="font-size:0.84rem;color:var(--text-muted);margin-bottom:14px">
+            ขอบคุณทุกท่านที่สละเวลาทดสอบระบบและให้ข้อเสนอแนะอันมีคุณค่า
+          </p>
+          <div class="about-team-grid">
+            <div class="about-team-member">
+              <div class="about-avatar about-avatar--team" style="--ac:#6366F1">ณป</div>
+              <div class="about-member-info">
+                <div class="about-member-name">นางสาวณณปภา ญณเมฒญ์</div>
+              </div>
+            </div>
+            <div class="about-team-member">
+              <div class="about-avatar about-avatar--team" style="--ac:#10B981">ธช</div>
+              <div class="about-member-info">
+                <div class="about-member-name">นางธัญชนก วงศ์ฉัตรทอง</div>
+              </div>
+            </div>
+            <div class="about-team-member">
+              <div class="about-avatar about-avatar--team" style="--ac:#F59E0B">วร</div>
+              <div class="about-member-info">
+                <div class="about-member-name">นางวาริตา ศิลายงค์</div>
+              </div>
+            </div>
+            <div class="about-team-member">
+              <div class="about-avatar about-avatar--team" style="--ac:#EC4899">พช</div>
+              <div class="about-member-info">
+                <div class="about-member-name">นางสาวพิชชาภัสส์ วีระเสถียร</div>
+              </div>
+            </div>
+            <div class="about-team-member">
+              <div class="about-avatar about-avatar--team" style="--ac:#8B5CF6">หก</div>
+              <div class="about-member-info">
+                <div class="about-member-name">นางหทัยกานต์ จนะอินทร์</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ============================================================
+       PROGRAM DETAIL SHEET (full-screen slide-up overlay)
+       ============================================================ -->
+  <div id="prog-detail-sheet" class="prog-detail-sheet">
+    <div class="prog-detail-topbar" id="prog-detail-topbar">
+      <button class="prog-detail-back" onclick="closeProgramDetail()">‹</button>
+      <div class="prog-detail-uni" id="prog-detail-uni">
+        <!-- badge + university name injected by showProgramDetail() -->
+      </div>
+    </div>
+    <div class="prog-detail-scroll" id="prog-detail-scroll">
+      <!-- content injected by showProgramDetail() -->
+    </div>
+  </div>
+
+  <!-- ============================================================
+       MODAL
+       ============================================================ -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="modal-title">รายละเอียด</div>
+        <button class="modal-close" id="modal-close-btn">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="modal-cancel-btn">ปิด</button>
+        <button class="btn btn-primary" id="modal-save-btn">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auto-save indicator -->
+  <div id="autosave-indicator" class="autosave-indicator">✓ บันทึกอัตโนมัติแล้ว</div>
+
+  <!-- Toast -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Mobile Bottom Navigation -->
+  <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+    <div class="mobile-nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
+      <span class="mobile-nav-icon">🏠</span>
+      <span class="mobile-nav-label">หน้าหลัก</span>
+    </div>
+    <div class="mobile-nav-item" data-page="scores" onclick="navigate('scores')">
+      <span class="mobile-nav-icon">📊</span>
+      <span class="mobile-nav-label">คะแนน</span>
+    </div>
+    <div class="mobile-nav-item" data-page="recommend" onclick="navigate('recommend')">
+      <span class="mobile-nav-icon">🎯</span>
+      <span class="mobile-nav-label">แนะนำ</span>
+    </div>
+    <div class="mobile-nav-item" data-page="university" onclick="navigate('university')">
+      <span class="mobile-nav-icon">🔍</span>
+      <span class="mobile-nav-label">ค้นหา</span>
+    </div>
+    <div class="mobile-nav-item" data-page="calendar" onclick="navigate('calendar')">
+      <span class="mobile-nav-icon">📅</span>
+      <span class="mobile-nav-label">ปฏิทิน</span>
+    </div>
+    <div class="mobile-nav-item" data-page="planner" onclick="navigate('planner')">
+      <span class="mobile-nav-icon">🗂️</span>
+      <span class="mobile-nav-label">วางแผน</span>
+    </div>
+    <div class="mobile-nav-item" data-page="profile" onclick="navigate('profile')">
+      <span class="mobile-nav-icon">👤</span>
+      <span class="mobile-nav-label">โปรไฟล์</span>
+    </div>
+  </nav>
+
+  <!-- Scripts -->
+  <script src="js/data.js?v=15"></script>
+  <script src="js/app.js?v=48"></script>
+  <script>
+    // Register Service Worker for PWA / offline support
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('SW registered:', reg.scope))
+          .catch(err => console.warn('SW registration failed:', err));
+      });
+    }
+  </script>
+
+</body>
+</html>

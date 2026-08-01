@@ -2418,6 +2418,7 @@ function renderProgramGrid() {
     const matchQ = !q ||
       p.program.toLowerCase().includes(q) ||
       p.faculty.toLowerCase().includes(q) ||
+      p.programFull.toLowerCase().includes(q) ||
       (uniObj && uniObj.name.toLowerCase().includes(q)) ||
       (uniObj && uniObj.shortName.toLowerCase().includes(q));
     const matchCat = cat === 'all' || p.category === cat;
@@ -2432,32 +2433,53 @@ function renderProgramGrid() {
 
   const hasScores = Object.values(state.studentData.scores).some(s => s !== '');
 
-  grid.innerHTML = filtered.map(p => {
-    const uni = getUniversityById(p.universityId);
-    const inWishlist = state.wishlist.includes(p.id);
-    const match = calculateMatchScore(p, state.studentData);
+  // Group by (universityId + faculty + program name)
+  const groupMap = new Map();
+  for (const p of filtered) {
+    const key = `${p.universityId}|${p.faculty}|${p.program}`;
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key).push(p);
+  }
+
+  grid.innerHTML = Array.from(groupMap.values()).map(progs => {
+    const p0 = progs[0];
+    const uniObj = getUniversityById(p0.universityId);
+
+    const curriculaHTML = progs.map(p => {
+      const inWishlist = state.wishlist.includes(p.id);
+      const match = calculateMatchScore(p, state.studentData);
+      return `
+        <div class="program-curriculum-row" onclick="showProgramDetail('${p.id}')">
+          <div class="pcr-main">
+            <div class="pcr-name">${p.programFull}</div>
+            <div class="pcr-sub">
+              <span>${p.seats} ที่นั่ง</span>
+              ${p.rounds.map(r => `<span class="round-pill" style="--rc:${TCAS_DATA.rounds[r-1].color}">${ROUND_SHORT[r-1]}</span>`).join('')}
+            </div>
+          </div>
+          <div class="pcr-actions">
+            ${hasScores ? `<span class="program-row-pct" style="color:${match.score >= 70 ? 'var(--success)' : match.score >= 45 ? 'var(--warning)' : 'var(--text-muted)'}">${match.score}%</span>` : ''}
+            <button class="wishlist-btn ${inWishlist ? 'active' : ''}"
+              onclick="event.stopPropagation(); toggleWishlist('${p.id}', this)"
+              title="${inWishlist ? 'ลบออกจากรายการสนใจ' : 'เพิ่มรายการสนใจ'}">
+              ${inWishlist ? '❤️' : '🤍'}
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
 
     return `
-      <div class="program-row" style="--prow-color:${uni.color}" onclick="showProgramDetail('${p.id}')">
-        <div class="program-row-main">
-          <div class="program-row-title">
-            <span class="program-row-badge" style="background:${uni.color}">${uni.shortName}</span>
-            <span class="program-row-name">${p.program}</span>
+      <div class="program-group" style="--prow-color:${uniObj.color}">
+        <div class="program-group-header">
+          <span class="program-row-badge" style="background:${uniObj.color}">${uniObj.shortName}</span>
+          <div class="program-group-info">
+            <div class="program-group-name">${p0.program}</div>
+            <div class="program-group-faculty">${p0.faculty}</div>
           </div>
-          <div class="program-row-sub">${p.faculty} · ${p.duration} ปี · ${p.seats > 0 ? p.seats : Object.values(p.seatsPerRound||{}).reduce((a,b)=>a+b,0)} ที่นั่ง</div>
         </div>
-        <div class="program-row-rounds">
-          ${p.rounds.map(r => `<span class="round-pill" style="--rc:${TCAS_DATA.rounds[r-1].color}">${ROUND_SHORT[r-1]}</span>`).join('')}
-        </div>
-        <div class="program-row-info">
-        </div>
-        <div class="program-row-actions">
-          ${hasScores ? `<span class="program-row-pct" style="color:${match.score >= 70 ? 'var(--success)' : match.score >= 45 ? 'var(--warning)' : 'var(--text-muted)'}">${match.score}%</span>` : ''}
-          <button class="wishlist-btn ${inWishlist ? 'active' : ''}"
-            onclick="event.stopPropagation(); toggleWishlist('${p.id}', this)"
-            title="${inWishlist ? 'ลบออกจากรายการสนใจ' : 'เพิ่มรายการสนใจ'}">
-            ${inWishlist ? '❤️' : '🤍'}
-          </button>
+        <div class="program-group-curricula">
+          ${curriculaHTML}
         </div>
       </div>
     `;
@@ -2531,9 +2553,12 @@ function renderWishlistContent() {
             <div class="program-row-main">
               <div class="program-row-title">
                 <span class="program-row-badge" style="background:${uni.color}">${uni.shortName}</span>
-                <span class="program-row-name">${p.program}</span>
+                <div>
+                  <div class="program-row-name">${p.program}</div>
+                  <div class="program-row-full">${p.programFull}</div>
+                </div>
               </div>
-              <div class="program-row-sub">${p.faculty} · ${p.duration} ปี · ${p.seats > 0 ? p.seats : Object.values(p.seatsPerRound||{}).reduce((a,b)=>a+b,0)} ที่นั่ง</div>
+              <div class="program-row-sub">${p.faculty} · ${p.seats} ที่นั่ง TCAS70</div>
             </div>
             <div class="program-row-rounds">
               ${p.rounds.map(r => `<span class="round-pill" style="--rc:${TCAS_DATA.rounds[r-1].color}">${ROUND_SHORT[r-1]}</span>`).join('')}
@@ -2724,12 +2749,20 @@ function showProgramDetail(programId) {
     <div class="pd-uni-badge" style="background:${uni.color};color:${txtColor}">${uni.shortName.slice(0,3)}</div>
     <span class="pd-uni-name">${uni.name}</span>`;
 
-  // Summary: total seats + source label
+  // Summary: total seats (already = sum of seatsPerRound after data update) + source label
   const hasTcas70 = [1,2,3,4].some(r => (program.roundSources||{})[r] === 'tcas70');
-  const totalSeats = program.seats > 0
-    ? program.seats
-    : Object.values(program.seatsPerRound || {}).reduce((a, b) => a + b, 0);
+  const totalSeats = program.seats;
   const srcLabel   = hasTcas70 ? 'mytcas.com TCAS70' : 'อ้างอิง TCAS69';
+
+  // Language type tag from last character of program ID
+  const typeCode = program.id.slice(-1);
+  const TYPE_MAP = { A: ['ภาษาไทย ปกติ', '#1D4ED8', '#EFF6FF', '#BFDBFE'],
+                     E: ['นานาชาติ',       '#15803D', '#F0FDF4', '#BBF7D0'],
+                     P: ['ภาษาไทย พิเศษ', '#7C3AED', '#F5F3FF', '#DDD6FE'] };
+  const typeInfo = TYPE_MAP[typeCode];
+  const typeTagHTML = typeInfo
+    ? `<span class="pd-type-tag" style="background:${typeInfo[2]};border-color:${typeInfo[3]};color:${typeInfo[1]}">${typeInfo[0]}</span>`
+    : '';
 
   // Match score badge
   const match = calculateMatchScore(program, state.studentData);
@@ -2744,16 +2777,17 @@ function showProgramDetail(programId) {
   scroll.innerHTML = `
     <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:4px">
       <div style="flex:1;min-width:0">
-        <div class="pd-bc">${program.faculty}</div>
-        <div class="pd-name">${program.program}</div>
-        <div class="pd-sub">${program.duration} · ${program.category}</div>
+        <div class="pd-bc">${program.faculty} · ${program.program}</div>
+        <div class="pd-name">${program.programFull}</div>
+        ${typeTagHTML}
+        <div class="pd-sub">${program.duration} ปี · ${program.category}</div>
       </div>
       ${matchHTML}
     </div>
 
     <div class="pd-summary-card">
       <div class="pd-sc-left">
-        <div class="pd-sc-lbl">จำนวนรับทั้งหมด</div>
+        <div class="pd-sc-lbl">จำนวนรับ TCAS70</div>
         <div class="pd-sc-num">${totalSeats}</div>
         <div class="pd-sc-unit">ที่นั่ง</div>
         <div class="pd-sc-src">${srcLabel}</div>

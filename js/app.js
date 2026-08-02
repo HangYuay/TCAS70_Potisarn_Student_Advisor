@@ -19,6 +19,7 @@ let state = {
   calendarMonth: 10,  // 0-indexed: 10 = November
   recommendRound: 'all',   // 'all'|'round1'|'round2'|'round3'|'round4'
   prefSearchQuery: '',     // search query inside preferences modal
+  prefUniFilter: '',       // university id filter inside preferences modal
   plannerTargetId: null,   // program id currently shown in Planner's score-gap section (null = use rank #1)
   plannerPortfolioTargetId: null,  // program id currently shown in Planner's Portfolio-readiness section
   plannerExpandedEvents: new Set(),  // event ids with the detail/attachment panel open (not persisted)
@@ -40,6 +41,11 @@ function defaultData() {
       lastName: '',
       studentId: '',
       classRoom: '',
+      classNo: '',
+      program: '',
+      studyPlan: '',
+      advisor1: '',
+      advisor2: '',
       schoolYear: '2569',
       phone: '',
       email: '',
@@ -70,6 +76,7 @@ function defaultData() {
     mockTests: [],   // [{ id, date, source, scores: {subjectKey: value}, files: [{name, dataUrl}] }]
     mistakeLog: [],  // [{ id, date, subject, topic, reason, correctAnswer, files: [{name, dataUrl}] }]
     interests: [],
+    avatarData: '',     // base64 data URL of user photo
     preferences: [],   // 10 อันดับคณะที่สนใจ (array of program IDs, ordered)
     planner: {
       roundPlans: { round1: [], round2: [], round3: [], round4: [] },  // { roundKey: [programId, ...] }
@@ -683,8 +690,9 @@ function renderProfile() {
 
   container.innerHTML = `
     <div class="profile-header-card">
-      <div class="profile-avatar-large" onclick="editAvatar()" title="คลิกเพื่อเปลี่ยน">
-        <img src="images/student-avatar.svg" alt="นักเรียน" class="avatar-img">
+      <div class="profile-avatar-large" onclick="editAvatar()" title="คลิกเพื่อเปลี่ยนรูป">
+        <img src="${state.studentData.avatarData || 'images/student-avatar.svg'}" alt="นักเรียน" class="avatar-img">
+        <div class="avatar-edit-overlay">📷</div>
       </div>
       <div>
         <div class="profile-name">${p.firstName || 'กรุณากรอกชื่อ'} ${p.lastName || ''}</div>
@@ -714,33 +722,53 @@ function renderProfile() {
               <input type="text" class="form-control" id="prof-lastName" value="${p.lastName || ''}" placeholder="นามสกุล" oninput="onProfileInput('lastName', this.value)">
             </div>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">รหัสนักเรียน</label>
-              <input type="text" class="form-control" id="prof-studentId" value="${p.studentId || ''}" placeholder="เช่น 12345" oninput="onProfileInput('studentId', this.value)">
-            </div>
-            <div class="form-group">
-              <label class="form-label">ห้องเรียน</label>
-              <input type="text" class="form-control" id="prof-classRoom" value="${p.classRoom || ''}" placeholder="เช่น ม.6/1" oninput="onProfileInput('classRoom', this.value)">
-            </div>
+          <div class="form-group">
+            <label class="form-label">รหัสนักเรียน</label>
+            <input type="text" class="form-control" id="prof-studentId" value="${p.studentId || ''}" placeholder="เช่น 12345" oninput="onProfileInput('studentId', this.value)">
           </div>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-header"><div class="card-title"><span class="icon">📱</span>ข้อมูลติดต่อ</div></div>
+        <div class="card-header"><div class="card-title"><span class="icon">🏫</span>ข้อมูลการศึกษา</div></div>
         <div class="card-body">
-          <div class="form-group">
-            <label class="form-label">เบอร์โทร</label>
-            <input type="tel" class="form-control" id="prof-phone" value="${p.phone || ''}" placeholder="0812345678" oninput="onProfileInput('phone', this.value)">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">ห้องเรียน</label>
+              <input type="text" class="form-control" id="prof-classRoom" value="${p.classRoom || ''}" placeholder="เช่น ม.6/1" oninput="onProfileInput('classRoom', this.value)">
+            </div>
+            <div class="form-group">
+              <label class="form-label">เลขที่</label>
+              <input type="number" class="form-control" id="prof-classNo" value="${p.classNo || ''}" placeholder="เช่น 15" min="1" max="50" oninput="onProfileInput('classNo', this.value)">
+            </div>
           </div>
           <div class="form-group">
-            <label class="form-label">อีเมล</label>
-            <input type="email" class="form-control" id="prof-email" value="${p.email || ''}" placeholder="email@example.com" oninput="onProfileInput('email', this.value)">
+            <label class="form-label">โปรแกรม</label>
+            <select class="form-control" id="prof-program" onchange="onProfileInput('program', this.value)">
+              <option value="">-- เลือกโปรแกรม --</option>
+              <option value="EP" ${p.program === 'EP' ? 'selected' : ''}>English Program [EP]</option>
+              <option value="IEP" ${p.program === 'IEP' ? 'selected' : ''}>Intensive English Program [IEP]</option>
+              <option value="GP" ${p.program === 'GP' ? 'selected' : ''}>General Program [GP]</option>
+            </select>
           </div>
           <div class="form-group">
-            <label class="form-label">LINE ID</label>
-            <input type="text" class="form-control" id="prof-lineId" value="${p.lineId || ''}" placeholder="line_id" oninput="onProfileInput('lineId', this.value)">
+            <label class="form-label">แผนการเรียน</label>
+            <select class="form-control" id="prof-studyPlan" onchange="onProfileInput('studyPlan', this.value)">
+              <option value="">-- เลือกแผนการเรียน --</option>
+              ${['แผนการเรียนเตรียมแพทย์','แผนการเรียนเตรียมเภสัช-สหเวช','แผนการเรียนเตรียมวิศวะ','แผนการเรียนเตรียมสถาปัตย์','แผนการเรียนเตรียมวิทย์-คอม','แผนการเรียนเตรียมบริหาร-ธุรกิจ','แผนการเรียนเตรียมนิเทศ-มนุษย์','แผนการเรียนเตรียมศิลปกรรม'].map(v =>
+                `<option value="${v}" ${p.studyPlan === v ? 'selected' : ''}>${v}</option>`
+              ).join('')}
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">ครูที่ปรึกษา 1</label>
+              <input type="text" class="form-control" id="prof-advisor1" value="${p.advisor1 || ''}" placeholder="ชื่อครู" oninput="onProfileInput('advisor1', this.value)">
+            </div>
+            <div class="form-group">
+              <label class="form-label">ครูที่ปรึกษา 2</label>
+              <input type="text" class="form-control" id="prof-advisor2" value="${p.advisor2 || ''}" placeholder="ชื่อครู" oninput="onProfileInput('advisor2', this.value)">
+            </div>
           </div>
         </div>
       </div>
@@ -765,7 +793,6 @@ function renderProfile() {
     <div class="card mt-4">
       <div class="card-header">
         <div class="card-title"><span class="icon">🏆</span>คณะที่สนใจ 10 อันดับ
-          <span style="font-size:0.75rem;font-weight:400;color:var(--text-muted);margin-left:6px">ใช้ในการประเมินรอบ Admission</span>
         </div>
         <button class="btn btn-primary btn-sm" onclick="openPrefModal()">+ เพิ่มคณะ</button>
       </div>
@@ -835,6 +862,7 @@ function renderPrefList() {
                 <span class="pref-prog-name">${prog.program}</span>
               </div>
               <div class="pref-item-sub">${prog.faculty} · ${roundBadges}</div>
+              <div class="pref-item-full">${prog.programFull}</div>
             </div>
             <div class="pref-actions">
               <button class="pref-btn" onclick="movePref(${i},-1)" ${i === 0 ? 'disabled' : ''} title="เลื่อนขึ้น">▲</button>
@@ -893,6 +921,7 @@ function addToPref(programId) {
 // ---- Preferences Selection Modal ----
 function openPrefModal() {
   state.prefSearchQuery = '';
+  state.prefUniFilter = '';
   const overlay = document.getElementById('modal-overlay');
   const modalTitle = document.getElementById('modal-title');
   const modalBody  = document.getElementById('modal-body');
@@ -915,6 +944,7 @@ function openPrefModal() {
           `<button class="filter-chip ${state.prefCatFilter===c?'active':''}" onclick="setPrefCat('${c}')">${c}</button>`
         ).join('')}
       </div>
+      <div style="margin-top:10px">${uniDropdownHTML('pref-uni', state.prefUniFilter)}</div>
     </div>
     <div id="pref-modal-list" style="margin-top:4px"></div>
   `;
@@ -929,12 +959,61 @@ function openPrefModal() {
 function setPrefCat(cat) {
   state.prefCatFilter = cat;
   renderPrefModalList();
-  // Refresh filter buttons
   document.querySelectorAll('#pref-cat-filter .filter-chip').forEach(btn => {
     const val = btn.textContent.trim() === 'ทั้งหมด' ? '' : btn.textContent.trim();
     btn.classList.toggle('active', val === cat);
   });
 }
+
+function setPrefUni(uniId) {
+  state.prefUniFilter = uniId;
+  renderPrefModalList();
+}
+
+// ---- Custom University Dropdown ----
+function uniDropdownHTML(id, selectedId) {
+  const uniLabel = u => `${u.shortName} - ${u.name}`;
+  const curLabel = selectedId
+    ? (TCAS_DATA.universities.find(u => u.id === selectedId) ? uniLabel(TCAS_DATA.universities.find(u => u.id === selectedId)) : 'ทุกมหาวิทยาลัย')
+    : 'ทุกมหาวิทยาลัย';
+  return `<div class="uni-dropdown">
+    <button class="uni-dropdown-btn" id="${id}-btn" onclick="toggleUniPicker('${id}')">${curLabel}</button>
+    <div class="uni-dropdown-list" id="${id}-list">
+      <div class="uni-dropdown-item ${!selectedId?'selected':''}" onclick="pickUni(event,'${id}','','ทุกมหาวิทยาลัย')">ทุกมหาวิทยาลัย</div>
+      ${TCAS_DATA.universities.map(u =>
+        `<div class="uni-dropdown-item ${selectedId===u.id?'selected':''}" onclick="pickUni(event,'${id}','${u.id}','${uniLabel(u).replace(/'/g,'&#39;')}')">${uniLabel(u)}</div>`
+      ).join('')}
+    </div>
+  </div>`;
+}
+
+function toggleUniPicker(id) {
+  const list = document.getElementById(id + '-list');
+  if (!list) return;
+  const isOpen = list.classList.contains('open');
+  document.querySelectorAll('.uni-dropdown-list.open').forEach(el => el.classList.remove('open'));
+  if (!isOpen) {
+    list.classList.add('open');
+    setTimeout(() => list.querySelector('.selected')?.scrollIntoView({ block: 'nearest' }), 50);
+  }
+}
+
+function pickUni(e, id, val, label) {
+  e.stopPropagation();
+  const btn = document.getElementById(id + '-btn');
+  if (btn) btn.textContent = label;
+  document.querySelectorAll(`#${id}-list .uni-dropdown-item`).forEach(el => el.classList.remove('selected'));
+  e.currentTarget.classList.add('selected');
+  document.getElementById(id + '-list')?.classList.remove('open');
+  if (id === 'pref-uni') { setPrefUni(val); }
+  else if (id === 'prog-uni') { state.selectedUniversity = val || 'all'; renderProgramGrid(); }
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.uni-dropdown')) {
+    document.querySelectorAll('.uni-dropdown-list.open').forEach(el => el.classList.remove('open'));
+  }
+});
 
 function renderPrefModalList() {
   const container = document.getElementById('pref-modal-list');
@@ -943,16 +1022,19 @@ function renderPrefModalList() {
   const prefs = getPreferences();
   const q   = (state.prefSearchQuery || '').toLowerCase();
   const cat = state.prefCatFilter || '';
+  const uni = state.prefUniFilter || '';
 
-  let programs = TCAS_DATA.programs.filter(p => {
-    const uni = getUniversityById(p.universityId);
+  const programs = TCAS_DATA.programs.filter(p => {
+    const uniObj = getUniversityById(p.universityId);
     const matchQ = !q ||
       p.program.toLowerCase().includes(q) ||
       p.faculty.toLowerCase().includes(q) ||
-      uni.name.toLowerCase().includes(q) ||
-      uni.shortName.toLowerCase().includes(q);
+      p.programFull.toLowerCase().includes(q) ||
+      uniObj.name.toLowerCase().includes(q) ||
+      uniObj.shortName.toLowerCase().includes(q);
     const matchCat = !cat || p.category === cat;
-    return matchQ && matchCat;
+    const matchUni = !uni || p.universityId === uni;
+    return matchQ && matchCat && matchUni;
   });
 
   if (programs.length === 0) {
@@ -960,32 +1042,51 @@ function renderPrefModalList() {
     return;
   }
 
-  container.innerHTML = programs.map(p => {
-    const uni = getUniversityById(p.universityId);
-    const inPref = prefs.includes(p.id);
-    const rank   = prefs.indexOf(p.id) + 1;
-    const full   = prefs.length >= 10 && !inPref;
-    const match  = calculateMatchScore(p, state.studentData);
-    const pct    = Math.min(match.score, 100);
-    const scoreColor = pct >= 65 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#EF4444';
+  const hasScores = Object.values(state.studentData.scores).some(s => s !== '');
+
+  // Group by (universityId + faculty + program) — same as search page
+  const groupMap = new Map();
+  for (const p of programs) {
+    const key = `${p.universityId}|${p.faculty}|${p.program}`;
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key).push(p);
+  }
+
+  container.innerHTML = Array.from(groupMap.values()).map(progs => {
+    const p0 = progs[0];
+    const uniObj = getUniversityById(p0.universityId);
+
+    const rowsHTML = progs.map(p => {
+      const inPref = prefs.includes(p.id);
+      const rank   = prefs.indexOf(p.id) + 1;
+      const full   = prefs.length >= 10 && !inPref;
+      const match  = hasScores ? calculateMatchScore(p, state.studentData) : null;
+
+      return `
+        <div class="program-curriculum-row pref-pcr ${inPref ? 'pref-pcr--on' : ''} ${full ? 'pref-pcr--full' : ''}"
+             onclick="${full ? '' : inPref ? `removePrefById('${p.id}')` : `addToPref('${p.id}')`}">
+          <div class="pcr-main">
+            <div class="pcr-name">${p.programFull}</div>
+          </div>
+          <div class="pcr-actions">
+            ${match ? `<span class="program-row-pct" style="color:${match.score>=70?'var(--success)':match.score>=45?'var(--warning)':'var(--text-muted)'}">${match.score}%</span>` : ''}
+            <div class="pref-modal-rank-badge ${inPref ? 'active' : ''}">
+              ${inPref ? `<strong>${rank}</strong>` : `<span style="color:var(--text-muted);font-size:0.8rem">+</span>`}
+            </div>
+          </div>
+        </div>`;
+    }).join('');
 
     return `
-      <div class="pref-modal-item ${inPref ? 'pref-modal-item--selected' : ''} ${full ? 'pref-modal-item--disabled' : ''}"
-           onclick="${full ? '' : inPref ? `removePrefById('${p.id}')` : `addToPref('${p.id}')`}">
-        <div class="pref-modal-rank-badge ${inPref ? 'active' : ''}">
-          ${inPref ? `<strong>${rank}</strong>` : `<span style="color:var(--text-muted);font-size:0.8rem">+</span>`}
-        </div>
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
-            <span style="font-size:0.65rem;font-weight:700;padding:1px 6px;border-radius:4px;background:${uni.color}20;color:${uni.color}">${uni.shortName}</span>
-            <span style="font-weight:600;font-size:0.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.program}</span>
+      <div class="program-group" style="--prow-color:${uniObj.color}">
+        <div class="program-group-header">
+          <span class="program-row-badge" style="background:${uniObj.color}">${uniObj.shortName}</span>
+          <div class="program-group-info">
+            <div class="program-group-name">${p0.program}</div>
+            <div class="program-group-faculty">${p0.faculty}</div>
           </div>
-          <div style="font-size:0.73rem;color:var(--text-muted)">${p.faculty}</div>
         </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:0.78rem;font-weight:700;color:${scoreColor}">${pct}%</div>
-          <div style="font-size:0.65rem;color:var(--text-muted)">เหมาะสม</div>
-        </div>
+        <div class="program-group-curricula">${rowsHTML}</div>
       </div>`;
   }).join('');
 }
@@ -1003,7 +1104,7 @@ function removePrefById(programId) {
 }
 
 function saveProfile() {
-  const fields = ['firstName', 'lastName', 'studentId', 'classRoom', 'phone', 'email', 'lineId', 'target'];
+  const fields = ['firstName', 'lastName', 'studentId', 'classRoom', 'classNo', 'program', 'studyPlan', 'advisor1', 'advisor2', 'target'];
   fields.forEach(f => {
     const el = document.getElementById(`prof-${f}`);
     if (el) state.studentData.profile[f] = el.value.trim();
@@ -1022,11 +1123,73 @@ function onProfileInput(field, value) {
 // ============================================================
 // SCORES
 // ============================================================
+
+function getRequiredSubjects() {
+  const prefs = state.studentData.preferences || [];
+  const counts = {};
+  prefs.forEach(entry => {
+    // preferences may be stored as ID strings or as program objects
+    const id = typeof entry === 'string' ? entry : entry.id;
+    const prog = TCAS_DATA.programs.find(p => p.id === id);
+    if (!prog) return;
+    const criteria = TCAS_CATEGORY_CRITERIA[prog.category] || {};
+    Object.keys(criteria).forEach(subj => {
+      counts[subj] = (counts[subj] || 0) + 1;
+    });
+  });
+  return counts;
+}
+
+function renderExamSummaryCard(req) {
+  const keys = Object.keys(req);
+  if (!keys.length) return '';
+
+  const SHORT = {
+    tgat1:'TGAT1', tgat2:'TGAT2', tgat3:'TGAT3',
+    tpat1:'TPAT1', tpat2:'TPAT2', tpat3:'TPAT3', tpat4:'TPAT4', tpat5:'TPAT5',
+    amath1:'คณิต 1', amath2:'คณิต 2', ascience:'วิทย์', aphy:'ฟิสิกส์',
+    achem:'เคมี', abio:'ชีววิทยา', athai:'ภาษาไทย', aeng:'อังกฤษ',
+    asocial:'สังคม', ahist:'ประวัติศาสตร์', afre:'ฝรั่งเศส', ager:'เยอรมัน',
+    ajpn:'ญี่ปุ่น', achn:'จีน', akor:'เกาหลี'
+  };
+
+  const chip = (k, cls) =>
+    `<span class="exam-chip exam-chip--${cls}">${SHORT[k] || k}<span class="exam-chip-n">${req[k]}</span></span>`;
+
+  const tgatKeys  = ['tgat1','tgat2','tgat3'].filter(k => req[k]);
+  const tpatKeys  = ['tpat1','tpat2','tpat3','tpat4','tpat5'].filter(k => req[k]);
+  const aKeys     = ['amath1','amath2','ascience','aphy','achem','abio','athai','aeng','asocial','ahist','afre','ager','ajpn','achn','akor'].filter(k => req[k]);
+
+  const group = (label, ks, cls) => !ks.length ? '' : `
+    <div class="exam-chip-group">
+      <div class="exam-chip-label">${label}</div>
+      <div class="exam-chips">${ks.map(k => chip(k, cls)).join('')}</div>
+    </div>`;
+
+  const totalProgs = (state.studentData.preferences || []).length;
+
+  return `
+    <div class="exam-summary-card">
+      <div class="exam-summary-head">
+        <span>📋</span>
+        <span class="exam-summary-title">วิชาที่ต้องสอบ</span>
+        <span class="exam-summary-badge">${keys.length} วิชา · จาก ${totalProgs} หลักสูตรที่เลือก</span>
+      </div>
+      ${group('TGAT', tgatKeys, 'tgat')}
+      ${group('TPAT', tpatKeys, 'tpat')}
+      ${group('A-Level', aKeys, 'alevel')}
+    </div>
+  `;
+}
+
 function renderScores() {
   const container = document.getElementById('scores-content');
   if (!container) return;
 
+  const req = getRequiredSubjects();
+
   container.innerHTML = `
+    ${renderExamSummaryCard(req)}
     <div class="tab-bar">
       <button class="tab-btn active" onclick="switchScoreTab(this,'gpa')">📊 GPA</button>
       <button class="tab-btn" onclick="switchScoreTab(this,'tgat')">🧠 TGAT</button>
@@ -1038,13 +1201,13 @@ function renderScores() {
       ${renderGPASection()}
     </div>
     <div id="score-tab-tgat" class="tab-panel">
-      ${renderTGATSection()}
+      ${renderTGATSection(req)}
     </div>
     <div id="score-tab-tpat" class="tab-panel">
-      ${renderTPATSection()}
+      ${renderTPATSection(req)}
     </div>
     <div id="score-tab-alevel" class="tab-panel">
-      ${renderALevelSection()}
+      ${renderALevelSection(req)}
     </div>
 
     <div class="flex gap-3 mt-4">
@@ -1104,11 +1267,27 @@ function renderGPASection() {
             placeholder="0.00 – 4.00" style="font-size:1.1rem;font-weight:700"
             oninput="onGPAInput('cumulative', this.value)">
           <span id="gpa-err-cumulative" class="gpa-error hidden">⚠️ เกรดต้องไม่เกิน 4.00</span>
-          <div class="form-hint">กรอกเกรดเฉลี่ยสะสมจากทะเบียน (ถ้ามี)</div>
+          <div class="form-hint" id="gpa-cumulative-hint">กรอกหรือแก้ไขได้ด้วยตนเอง</div>
         </div>
       </div>
     </div>
   `;
+}
+
+function autoCalcCumulative() {
+  const gpa = state.studentData.gpa;
+  const keys = ['m401', 'm402', 'm411', 'm412', 'm421', 'm422'];
+  const vals = keys.map(k => parseFloat(gpa[k])).filter(v => !isNaN(v) && v >= 0 && v <= 4);
+  if (vals.length === 0) return;
+  const avg = vals.reduce((s, v) => s + v, 0) / vals.length;
+  const result = (Math.round(avg * 100) / 100).toFixed(2);
+  state.studentData.gpa.cumulative = result;
+  const input = document.getElementById('gpa-cumulative');
+  if (input) input.value = result;
+  const hint = document.getElementById('gpa-cumulative-hint');
+  if (hint) hint.textContent = 'คำนวณอัตโนมัติจาก GPA ที่บันทึก · แก้ไขได้ด้วยตนเอง';
+  const display = document.getElementById('gpa-display-cumulative');
+  if (display) display.textContent = result;
 }
 
 function onGPAInput(key, value) {
@@ -1144,6 +1323,7 @@ function onGPAInput(key, value) {
   if (inputEl) inputEl.classList.remove('error');
   if (displayEl) displayEl.textContent = num.toFixed(2);
   state.studentData.gpa[key] = value;
+  if (key !== 'cumulative') autoCalcCumulative();
   debounceSave();
 }
 
@@ -1152,8 +1332,9 @@ function updateGPADisplay(key, val) {
   onGPAInput(key, val);
 }
 
-function renderTGATSection() {
+function renderTGATSection(req = {}) {
   const s = state.studentData.scores;
+  const hasReq = Object.keys(req).length > 0;
   const tgats = [
     { key: 'tgat1', name: 'TGAT1 ความถนัดสื่อสารภาษาอังกฤษ', max: 100, desc: 'วัดความสามารถด้านการอ่าน เขียน ฟัง พูด ภาษาอังกฤษ' },
     { key: 'tgat2', name: 'TGAT2 การคิดอย่างมีเหตุผล', max: 100, desc: 'วัดทักษะการคิดวิเคราะห์ ตรรกะ และแก้ปัญหา' },
@@ -1171,13 +1352,15 @@ function renderTGATSection() {
         <thead><tr><th>วิชา</th><th>คะแนนที่ได้</th><th>เต็ม</th><th>%</th></tr></thead>
         <tbody>
           ${tgats.map(t => {
+            const needed = req[t.key] > 0;
+            const rowCls = needed ? 'score-row-highlight' : (hasReq ? 'score-row-dim' : '');
             const val = parseFloat(s[t.key]) || 0;
             const pct = val > 0 ? Math.round(val / t.max * 100) : 0;
             const color = pct >= 70 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : pct > 0 ? 'var(--danger)' : 'var(--text-muted)';
             return `
-              <tr>
+              <tr class="${rowCls}">
                 <td>
-                  <div style="font-weight:600;font-size:0.88rem">${t.name}</div>
+                  <div style="font-weight:600;font-size:0.88rem">${t.name}${needed ? `<span class="score-need-badge">${req[t.key]} หลักสูตร</span>` : ''}</div>
                   <div style="font-size:0.72rem;color:var(--text-muted)">${t.desc}</div>
                 </td>
                 <td>
@@ -1201,8 +1384,9 @@ function renderTGATSection() {
   `;
 }
 
-function renderTPATSection() {
+function renderTPATSection(req = {}) {
   const s = state.studentData.scores;
+  const hasReq = Object.keys(req).length > 0;
   const tpats = [
     { key: 'tpat1', name: 'TPAT1 วิชาเฉพาะแพทย์ (กสพท)', max: 300, desc: 'จำเป็นสำหรับแพทย์ ทันตแพทย์ เภสัชบางที่ สัตวแพทย์บางที่' },
     { key: 'tpat2', name: 'TPAT2 วิชาเฉพาะด้านศิลปกรรมศาสตร์', max: 100, desc: 'สำหรับสาขาศิลปะ ดนตรี นาฏศิลป์' },
@@ -1214,21 +1398,23 @@ function renderTPATSection() {
   return `
     <div class="card">
       <div class="score-section-title">🎯 TPAT - Thai Professional Aptitude Test</div>
-      <div class="warning-box mb-3" style="margin:16px 16px 0">
-        <span>⚠️</span>
-        <span>สอบเฉพาะ TPAT ที่ตรงกับสาขาที่ต้องการเท่านั้น ไม่จำเป็นต้องสอบทุกวิชา</span>
+      <div class="info-box mb-3" style="margin:16px 16px 0">
+        <span>ℹ️</span>
+        <span>TPAT สอบวันที่ 30 ม.ค. – 1 ก.พ. 2570 &nbsp;·&nbsp; TPAT1 คะแนนเต็ม 300 คะแนน, TPAT2–5 คะแนนเต็ม 100 คะแนน &nbsp;·&nbsp; สอบเฉพาะวิชาที่ตรงกับสาขาที่ต้องการ ตรวจสอบกำหนดการล่าสุดที่ mytcas.com</span>
       </div>
       <table class="score-table">
         <thead><tr><th>วิชา</th><th>คะแนนที่ได้</th><th>เต็ม</th><th>%</th></tr></thead>
         <tbody>
           ${tpats.map(t => {
+            const needed = req[t.key] > 0;
+            const rowCls = needed ? 'score-row-highlight' : (hasReq ? 'score-row-dim' : '');
             const val = parseFloat(s[t.key]) || 0;
             const pct = val > 0 ? Math.round(val / t.max * 100) : 0;
             const color = pct >= 70 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : pct > 0 ? 'var(--danger)' : 'var(--text-muted)';
             return `
-              <tr>
+              <tr class="${rowCls}">
                 <td>
-                  <div style="font-weight:600;font-size:0.88rem">${t.name}</div>
+                  <div style="font-weight:600;font-size:0.88rem">${t.name}${needed ? `<span class="score-need-badge">${req[t.key]} หลักสูตร</span>` : ''}</div>
                   <div style="font-size:0.72rem;color:var(--text-muted)">${t.desc}</div>
                 </td>
                 <td>
@@ -1252,8 +1438,9 @@ function renderTPATSection() {
   `;
 }
 
-function renderALevelSection() {
+function renderALevelSection(req = {}) {
   const s = state.studentData.scores;
+  const hasReq = Object.keys(req).length > 0;
   const groups = [
     {
       label: '📐 คณิตศาสตร์และวิทยาศาสตร์',
@@ -1287,19 +1474,27 @@ function renderALevelSection() {
     }
   ];
 
-  return groups.map(g => `
+  const infoBox = `
+    <div class="info-box mb-3">
+      <span>ℹ️</span>
+      <span>A-Level สอบวันที่ 13–15 มี.ค. 2570 &nbsp;·&nbsp; คะแนนแต่ละวิชาสูงสุด 100 คะแนน &nbsp;·&nbsp; สอบเฉพาะวิชาที่มหาวิทยาลัยกำหนด ตรวจสอบกำหนดการล่าสุดที่ mytcas.com</span>
+    </div>`;
+
+  return infoBox + groups.map(g => `
     <div class="card mb-3">
       <div class="score-section-title">${g.label}</div>
       <table class="score-table">
         <thead><tr><th>วิชา</th><th>คะแนนที่ได้</th><th>เต็ม</th><th>%</th></tr></thead>
         <tbody>
           ${g.subjects.map(t => {
+            const needed = req[t.key] > 0;
+            const rowCls = needed ? 'score-row-highlight' : (hasReq ? 'score-row-dim' : '');
             const val = parseFloat(s[t.key]) || 0;
             const pct = val > 0 ? Math.round(val / t.max * 100) : 0;
             const color = pct >= 70 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : pct > 0 ? 'var(--danger)' : 'var(--text-muted)';
             return `
-              <tr>
-                <td style="font-size:0.88rem">${t.name}</td>
+              <tr class="${rowCls}">
+                <td style="font-size:0.88rem">${t.name}${needed ? `<span class="score-need-badge">${req[t.key]} หลักสูตร</span>` : ''}</td>
                 <td>
                   <input type="number" class="score-input" id="score-${t.key}"
                     value="${s[t.key] || ''}" min="0" max="${t.max}" step="0.5"
@@ -2054,6 +2249,30 @@ function switchPortfolioTab(btn, tab) {
   if (panel) panel.classList.add('active');
 }
 
+const THAI_MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+function formatDateThai(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${d} ${THAI_MONTHS_SHORT[m - 1]} ${y + 543}`;
+}
+
+function formatDateRangeThai(start, end) {
+  if (!start) return '';
+  if (!end || end === start) return formatDateThai(start);
+  const [sy, sm, sd] = start.split('-').map(Number);
+  const [ey, em, ed] = end.split('-').map(Number);
+  if (sy === ey && sm === em) return `${sd}–${ed} ${THAI_MONTHS_SHORT[sm - 1]} ${sy + 543}`;
+  if (sy === ey) return `${sd} ${THAI_MONTHS_SHORT[sm - 1]} – ${ed} ${THAI_MONTHS_SHORT[em - 1]} ${sy + 543}`;
+  return `${formatDateThai(start)} – ${formatDateThai(end)}`;
+}
+
+// Convert Buddhist Era year-only string (e.g. "2568") to a CE ISO prefix for date input
+function beYearToISOYear(beStr) {
+  const n = parseInt(beStr);
+  return isNaN(n) ? '' : String(n - 543);
+}
+
 function renderPortfolioList(type, defaultIcon, title, emptyMsg, addFnName) {
   const items = state.studentData.portfolio[type] || [];
   return `
@@ -2088,19 +2307,54 @@ function renderPortfolioItem(type, item, idx, defaultIcon) {
       <div class="portfolio-item-info">
         <div class="portfolio-item-title">${item.name || item.title || 'ไม่ระบุชื่อ'}</div>
         <div class="portfolio-item-meta">
-          ${item.year ? `<span>📅 ${item.year}</span>` : ''}
+          ${item.dateStart ? `<span>📅 ${formatDateRangeThai(item.dateStart, item.dateEnd)}</span>` : item.year ? `<span>📅 ${item.year}</span>` : ''}
           ${levelInfo ? `<span class="badge" style="background:${levelInfo.color}20;color:${levelInfo.color}">${levelInfo.name}</span>` : ''}
           ${item.organizer ? `<span>🏛️ ${item.organizer}</span>` : ''}
           ${item.result ? `<span>🏅 ${item.result}</span>` : ''}
           ${item.hours ? `<span>⏰ ${item.hours} ชั่วโมง</span>` : ''}
+          ${item.certificateData ? `<span class="cert-badge" onclick="viewCertificate('${type}', ${idx})">📄 ดูใบประกาศ</span>` : ''}
         </div>
         ${item.description ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px">${item.description}</div>` : ''}
+        ${item.certificateData ? `
+          <div class="cert-thumb-row" onclick="viewCertificate('${type}', ${idx})">
+            <img src="${item.certificateData}" alt="ใบประกาศ" class="cert-thumb-img">
+          </div>
+        ` : ''}
       </div>
       <div class="portfolio-item-actions">
+        <button class="btn btn-ghost btn-sm" onclick="editPortfolioItem('${type}', ${idx})" title="แก้ไข">✏️</button>
         <button class="btn btn-ghost btn-sm" onclick="removePortfolioItem('${type}', ${idx})" title="ลบ">🗑️</button>
       </div>
     </div>
   `;
+}
+
+function editPortfolioItem(type, idx) {
+  if (type === 'camps') showAddCampModal(idx);
+}
+
+function viewCertificate(type, idx) {
+  const item = (state.studentData.portfolio[type] || [])[idx];
+  if (!item?.certificateData) return;
+  const win = window.open('', '_blank');
+  if (!win) { showToast('⚠️ กรุณาอนุญาต Pop-up window'); return; }
+  win.document.write(`<!DOCTYPE html><html><head><title>ใบประกาศ — ${item.name || ''}</title><style>body{margin:0;background:#111;display:flex;justify-content:center;padding:16px}img{max-width:100%;height:auto;border-radius:4px}</style></head><body><img src="${item.certificateData}" alt="ใบประกาศ"></body></html>`);
+  win.document.close();
+}
+
+function handleCertUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { showToast('⚠️ ไฟล์ต้องมีขนาดไม่เกิน 2MB'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    window._certData = e.target.result;
+    const preview = document.getElementById('cert-preview');
+    if (preview) { preview.innerHTML = `<img src="${e.target.result}" alt="ใบประกาศ" class="cert-preview-img">`; preview.style.display = 'block'; }
+    const hint = document.getElementById('cert-upload-hint');
+    if (hint) hint.textContent = '✅ อัพโหลดแล้ว · คลิกเพื่อเปลี่ยน';
+  };
+  reader.readAsDataURL(file);
 }
 
 function removePortfolioItem(type, idx) {
@@ -2112,39 +2366,61 @@ function removePortfolioItem(type, idx) {
 }
 
 // ---- Add Item Modals ----
-function showAddCampModal() {
-  showGenericAddModal('⛺ เพิ่มค่าย', `
+function showAddCampModal(editIdx = null) {
+  const existing = editIdx !== null ? (state.studentData.portfolio.camps[editIdx] || {}) : {};
+  window._certData = existing.certificateData || null;
+
+  const iconOptions = TCAS_DATA.campTypes.map(c =>
+    `<option value="${c.icon}" ${existing.icon === c.icon ? 'selected' : ''}>${c.icon} ${c.name}</option>`
+  ).join('');
+
+  showGenericAddModal(editIdx !== null ? '✏️ แก้ไขค่าย' : '⛺ เพิ่มค่าย', `
     <div class="form-group">
       <label class="form-label">ชื่อค่าย <span class="required">*</span></label>
-      <input type="text" class="form-control" id="add-name" placeholder="เช่น ค่ายวิทยาศาสตร์ สสวท.">
+      <input type="text" class="form-control" id="add-name" value="${existing.name || ''}" placeholder="เช่น ค่ายวิทยาศาสตร์ สสวท.">
+    </div>
+    <div class="form-group">
+      <label class="form-label">ประเภทค่าย</label>
+      <select class="form-control" id="add-icon">${iconOptions}</select>
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">ประเภทค่าย</label>
-        <select class="form-control" id="add-icon">
-          ${TCAS_DATA.campTypes.map(c => `<option value="${c.icon}">${c.icon} ${c.name}</option>`).join('')}
-        </select>
+        <label class="form-label">วันที่เริ่มต้น</label>
+        <input type="date" class="form-control" id="add-date-start" value="${existing.dateStart || ''}">
       </div>
       <div class="form-group">
-        <label class="form-label">ปีที่เข้าร่วม</label>
-        <input type="text" class="form-control" id="add-year" placeholder="เช่น 2568">
+        <label class="form-label">วันที่สิ้นสุด <span style="font-weight:400;color:var(--text-muted)">(ถ้ามี)</span></label>
+        <input type="date" class="form-control" id="add-date-end" value="${existing.dateEnd || ''}">
       </div>
     </div>
     <div class="form-group">
       <label class="form-label">หน่วยงานผู้จัด</label>
-      <input type="text" class="form-control" id="add-organizer" placeholder="เช่น สสวท., มหาวิทยาลัยจุฬา">
+      <input type="text" class="form-control" id="add-organizer" value="${existing.organizer || ''}" placeholder="เช่น สสวท., มหาวิทยาลัยจุฬา">
     </div>
     <div class="form-group">
       <label class="form-label">รายละเอียดเพิ่มเติม</label>
-      <textarea class="form-control" id="add-description" placeholder="กิจกรรมที่ทำ ทักษะที่ได้รับ..."></textarea>
+      <textarea class="form-control" id="add-description" placeholder="กิจกรรมที่ทำ ทักษะที่ได้รับ...">${existing.description || ''}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">📄 ใบประกาศนียบัตร / เอกสาร</label>
+      <div id="cert-preview" class="cert-preview" style="${existing.certificateData ? '' : 'display:none'}">
+        ${existing.certificateData ? `<img src="${existing.certificateData}" alt="ใบประกาศ" class="cert-preview-img">` : ''}
+      </div>
+      <div class="cert-upload-zone" onclick="document.getElementById('cert-file-input').click()">
+        <span>📎</span>
+        <span id="cert-upload-hint">${existing.certificateData ? '✅ มีไฟล์อยู่แล้ว · คลิกเพื่อเปลี่ยน' : 'คลิกเพื่ออัพโหลดภาพใบประกาศ (ไม่เกิน 2MB)'}</span>
+      </div>
+      <input type="file" id="cert-file-input" accept="image/*" style="display:none" onchange="handleCertUpload(this)">
     </div>
   `, () => savePortfolioItem('camps', {
     name: getVal('add-name'),
     icon: getVal('add-icon'),
-    year: getVal('add-year'),
+    dateStart: getVal('add-date-start'),
+    dateEnd: getVal('add-date-end'),
     organizer: getVal('add-organizer'),
-    description: getVal('add-description')
-  }));
+    description: getVal('add-description'),
+    certificateData: window._certData
+  }, editIdx));
 }
 
 function showAddAwardModal() {
@@ -2291,18 +2567,22 @@ function showAddVolunteerModal() {
   }));
 }
 
-function savePortfolioItem(type, item) {
+function savePortfolioItem(type, item, editIdx = null) {
   if (!item.name && !item.title) { showToast('⚠️ กรุณากรอกชื่อ'); return false; }
   if (!state.studentData.portfolio[type]) state.studentData.portfolio[type] = [];
-  state.studentData.portfolio[type].push(item);
+  if (editIdx !== null) {
+    state.studentData.portfolio[type][editIdx] = item;
+  } else {
+    state.studentData.portfolio[type].push(item);
+  }
+  window._certData = null;
   saveData();
   closeModal();
   renderPortfolio();
-  // Re-activate the correct tab
   const tabMap = { camps: 'camps', awards: 'awards', competitions: 'competitions', activities: 'activities', volunteer: 'volunteer' };
   const btn = document.querySelector(`[onclick*="switchPortfolioTab(this,'${tabMap[type]}')"]`);
   if (btn) switchPortfolioTab(btn, tabMap[type]);
-  showToast('✅ เพิ่มข้อมูลแล้ว');
+  showToast(editIdx !== null ? '✅ แก้ไขข้อมูลแล้ว' : '✅ เพิ่มข้อมูลแล้ว');
   return true;
 }
 
@@ -2354,13 +2634,7 @@ function renderUniversitySearch() {
             value="${state.searchQuery}"
             oninput="state.searchQuery=this.value; renderProgramGrid()">
         </div>
-        <select class="form-control" style="width:auto" id="prog-uni-filter"
-          onchange="state.selectedUniversity=this.value; renderProgramGrid()">
-          <option value="all">ทุกมหาวิทยาลัย</option>
-          ${TCAS_DATA.universities.map(u =>
-            `<option value="${u.id}" ${state.selectedUniversity === u.id ? 'selected' : ''}>${u.shortName} - ${u.name.substring(0, 20)}${u.name.length > 20 ? '...' : ''}</option>`
-          ).join('')}
-        </select>
+        <div style="min-width:200px">${uniDropdownHTML('prog-uni', state.selectedUniversity === 'all' ? '' : state.selectedUniversity)}</div>
       </div>
       <div class="filter-chips" id="cat-filter-chips">
         ${['all', ...new Set(TCAS_DATA.programs.map(p => p.category))].sort().map(cat => `
@@ -2511,9 +2785,12 @@ function filterByUniversity(uniId) {
   // Switch to programs tab
   const btn = document.querySelector('[onclick*="switchUniTab(this,\'programs\')"]');
   if (btn) switchUniTab(btn, 'programs');
-  // Update select
-  const sel = document.getElementById('prog-uni-filter');
-  if (sel) sel.value = uniId;
+  // Update custom dropdown button label
+  const dropBtn = document.getElementById('prog-uni-btn');
+  if (dropBtn) {
+    const u = TCAS_DATA.universities.find(u => u.id === uniId);
+    dropBtn.textContent = u ? `${u.shortName} - ${u.name}` : 'ทุกมหาวิทยาลัย';
+  }
   renderProgramGrid();
 }
 
@@ -4845,6 +5122,35 @@ function renderVersionLog() {
   }).join('');
 }
 
+// ---- Avatar upload ----
+function editAvatar() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) { showToast('รูปภาพต้องมีขนาดไม่เกิน 3MB'); return; }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      state.studentData.avatarData = ev.target.result;
+      saveData();
+      updateAvatarDisplay();
+      showToast('✅ เปลี่ยนรูปโปรไฟล์แล้ว');
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+function updateAvatarDisplay() {
+  const src = state.studentData.avatarData || 'images/student-avatar.svg';
+  const profileImg = document.querySelector('.profile-avatar-large .avatar-img');
+  if (profileImg) profileImg.src = src;
+  const headerAvatar = document.getElementById('student-avatar');
+  if (headerAvatar) headerAvatar.innerHTML = `<img src="${src}" alt="avatar" class="avatar-img">`;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // Nav
   document.querySelectorAll('.nav-item').forEach(item => {
@@ -4866,6 +5172,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize app
   updateHeaderChip();
+  updateAvatarDisplay();
   navigate('dashboard');
   checkVersionNotification();
   checkSundayForceUpdate();

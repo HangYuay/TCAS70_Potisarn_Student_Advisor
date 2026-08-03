@@ -3259,7 +3259,7 @@ function pdCriteriaRows(criteria, color) {
   }).join('');
 }
 
-function pdProjectRow(proj, color) {
+function pdProjectRow(proj, color, isTcas69 = false) {
   const oldCriteria = typeof proj.criteria === 'object' ? proj.criteria : {};
   const criteriaText = typeof proj.criteria === 'string' ? proj.criteria : (proj.criteriaText || '');
   const reqs = (proj.requirements || []).map(r =>
@@ -3286,7 +3286,7 @@ function pdProjectRow(proj, color) {
   return `<div class="pd-proj-row" onclick="toggleDetailProject(this)">
     <div class="pd-proj-top">
       <span class="pd-proj-name">${proj.name}</span>
-      <span class="pd-proj-seats">${proj.seats} คน</span>
+      <span class="pd-proj-seats">${isTcas69 || proj.seats === 0 ? 'รอ TCAS70 ประกาศ' : proj.seats + ' คน'}</span>
       <span class="pd-proj-arr">▾</span>
     </div>
     <div class="pd-proj-detail">
@@ -3337,16 +3337,21 @@ function pdRoundPanel(program, r) {
       body = `<div class="pd-state-box"><div class="pd-state-txt" style="font-size:0.75rem">ดูรายละเอียดเพิ่มเติมจากมหาวิทยาลัยโดยตรง</div></div>`;
     }
   } else {
-    const criteriaHTML = Object.keys(criteria).length
-      ? `<div class="pd-proj-row" onclick="toggleDetailProject(this)" style="margin-top:4px">
+    let criteriaHTML = '';
+    if (projects.length > 0) {
+      criteriaHTML = projects.map(p => pdProjectRow(p, color, true)).join('');
+    } else if (Object.keys(criteria).length) {
+      criteriaHTML = `<div class="pd-proj-row" onclick="toggleDetailProject(this)" style="margin-top:4px">
           <div class="pd-proj-top">
             <span class="pd-proj-name">เกณฑ์รอบ ${r} (อ้างอิง TCAS69)</span>
             <span class="pd-proj-seats" style="color:var(--text-muted)">~${seats} คน</span>
             <span class="pd-proj-arr">▾</span>
           </div>
           <div class="pd-proj-detail">${pdCriteriaRows(criteria, color)}</div>
-        </div>`
-      : `<div class="pd-state-box"><div class="pd-state-txt" style="font-size:0.75rem;color:var(--text-muted)">ยังไม่มีข้อมูลเกณฑ์ · ตรวจสอบจากมหาวิทยาลัยโดยตรง</div></div>`;
+        </div>`;
+    } else {
+      criteriaHTML = `<div class="pd-state-box"><div class="pd-state-txt" style="font-size:0.75rem;color:var(--text-muted)">ยังไม่มีข้อมูลเกณฑ์ · ตรวจสอบจากมหาวิทยาลัยโดยตรง</div></div>`;
+    }
     body = `<div class="pd-warn"><span style="flex-shrink:0;margin-top:1px">⚠</span><span>ข้อมูลด้านล่างอ้างอิงจาก TCAS69 · จะอัปเดตเมื่อ TCAS70 ประกาศ</span></div>${criteriaHTML}`;
   }
 
@@ -3359,7 +3364,7 @@ function pdRoundPanel(program, r) {
       <div class="pd-round-num" style="background:${color}">${r}</div>
       <div class="pd-card-htxt">
         <div class="pd-card-htype">${rname}</div>
-        <div class="pd-card-htotal">รับ ${seats} คน${isEstimated ? ' (ประมาณการ)' : ''}</div>
+        <div class="pd-card-htotal">${src === 'tcas69' ? 'รอประกาศจำนวนรับ TCAS70' : `รับ ${seats} คน${isEstimated ? ' (ประมาณการ)' : ''}`}</div>
       </div>
       ${badge}
     </div>
@@ -3379,8 +3384,7 @@ function pdPillHTML(program, r, selected) {
     num = perR !== undefined ? perR : program.seats;
     sta = 'ประกาศ TCAS70 แล้ว';
   } else {
-    const est = perR !== undefined ? perR : Math.round(program.seats / Math.max(program.rounds.length,1));
-    num = '~' + est;
+    num = '?';
     sta = 'อ้างอิง TCAS69';
   }
 

@@ -931,7 +931,7 @@ function openPrefModal() {
   if (cancelBtn) cancelBtn.textContent   = 'ปิด';
 
   modalBody.innerHTML = `
-    <div style="position:sticky;top:0;background:var(--surface);padding-bottom:12px;z-index:2">
+    <div style="position:sticky;top:-24px;background:var(--surface);z-index:2;margin:-24px -24px 0 -24px;padding:24px 24px 12px">
       <input type="text" class="form-control" id="pref-search-input"
         placeholder="🔍 ค้นหาคณะหรือมหาวิทยาลัย..."
         oninput="state.prefSearchQuery=this.value;renderPrefModalList()"
@@ -2254,7 +2254,6 @@ function renderPortfolio() {
     </div>
     <div id="port-tab-awards" class="tab-panel">
       ${renderPortfolioList('awards', '🏆', 'รางวัลที่ได้รับ', 'ยังไม่มีรางวัล', 'showAddAwardModal')}
-      ${renderPortfolioList('competitions', '🥊', 'การแข่งขัน', 'ยังไม่มีการแข่งขัน', 'showAddCompModal')}
     </div>
     <div id="port-tab-activities" class="tab-panel">
       ${renderPortfolioList('activities', '🎯', 'กิจกรรมต่างๆ', 'ยังไม่มีกิจกรรม', 'showAddActivityModal')}
@@ -2340,6 +2339,7 @@ function renderPortfolioItem(type, item, idx, defaultIcon) {
           ${item.certificateData ? `<span class="cert-badge" onclick="viewCertificate('${type}', ${idx})">📄 ดูใบประกาศ</span>` : ''}
         </div>
         ${item.description ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;white-space:pre-wrap">${item.description}</div>` : ''}
+        ${item.certificateName ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px">📄 ${item.certificateName}</div>` : ''}
         ${item.specialAward ? `<div class="camp-special-award">🏅 ${item.specialAward}</div>` : ''}
         ${item.awardData ? `
           <div class="cert-thumb-row" onclick="viewAwardPhoto('${type}', ${idx})">
@@ -2373,6 +2373,8 @@ function renderPortfolioItem(type, item, idx, defaultIcon) {
 function editPortfolioItem(type, idx) {
   if (type === 'camps') showAddCampModal(idx);
   else if (type === 'awards') showAddAwardModal(idx);
+  else if (type === 'activities') showAddActivityModal(idx);
+  else if (type === 'volunteer') showAddVolunteerModal(idx);
 }
 
 function viewCertificate(type, idx) {
@@ -2712,67 +2714,223 @@ function showAddCompModal() {
   }));
 }
 
-function showAddActivityModal() {
-  showGenericAddModal('🎯 เพิ่มกิจกรรม', `
+function handleActCertUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { showToast('⚠️ ไฟล์ต้องมีขนาดไม่เกิน 5MB'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    window._actCertData = e.target.result;
+    const preview = document.getElementById('act-cert-preview');
+    if (preview) { preview.innerHTML = `<img src="${e.target.result}" alt="ใบประกาศ" class="cert-preview-img">`; preview.style.display = 'block'; }
+    const hint = document.getElementById('act-cert-hint');
+    if (hint) hint.textContent = '✅ มีไฟล์อยู่แล้ว · คลิกเพื่อเปลี่ยน';
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleActPhotoUpload(input, slotIdx) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { showToast('⚠️ ไฟล์ต้องมีขนาดไม่เกิน 5MB'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    if (!window._actPhotos) window._actPhotos = [null, null, null];
+    window._actPhotos[slotIdx] = e.target.result;
+    const preview = document.getElementById(`act-photo-preview-${slotIdx}`);
+    if (preview) { preview.innerHTML = `<img src="${e.target.result}" class="photo-slot-img">`; preview.style.display = 'block'; }
+    const hint = document.getElementById(`act-photo-hint-${slotIdx}`);
+    if (hint) hint.textContent = '✅ เปลี่ยน';
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleVolCertUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { showToast('⚠️ ไฟล์ต้องมีขนาดไม่เกิน 5MB'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    window._volCertData = e.target.result;
+    const preview = document.getElementById('vol-cert-preview');
+    if (preview) { preview.innerHTML = `<img src="${e.target.result}" alt="ใบประกาศ" class="cert-preview-img">`; preview.style.display = 'block'; }
+    const hint = document.getElementById('vol-cert-hint');
+    if (hint) hint.textContent = '✅ มีไฟล์อยู่แล้ว · คลิกเพื่อเปลี่ยน';
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleVolPhotoUpload(input, slotIdx) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { showToast('⚠️ ไฟล์ต้องมีขนาดไม่เกิน 5MB'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    if (!window._volPhotos) window._volPhotos = [null, null, null];
+    window._volPhotos[slotIdx] = e.target.result;
+    const preview = document.getElementById(`vol-photo-preview-${slotIdx}`);
+    if (preview) { preview.innerHTML = `<img src="${e.target.result}" class="photo-slot-img">`; preview.style.display = 'block'; }
+    const hint = document.getElementById(`vol-photo-hint-${slotIdx}`);
+    if (hint) hint.textContent = '✅ เปลี่ยน';
+  };
+  reader.readAsDataURL(file);
+}
+
+function showAddActivityModal(editIdx = null) {
+  const existing = editIdx !== null ? (state.studentData.portfolio.activities[editIdx] || {}) : {};
+  window._actCertData = existing.certificateData || null;
+  window._actPhotos   = [...(existing.activityPhotos || [null, null, null])];
+
+  const photoSlots = [0, 1, 2].map(i => {
+    const hasPhoto = !!window._actPhotos[i];
+    return `
+      <div class="photo-upload-slot">
+        <div id="act-photo-preview-${i}" class="photo-slot-preview" style="${hasPhoto ? '' : 'display:none'}">
+          ${hasPhoto ? `<img src="${window._actPhotos[i]}" class="photo-slot-img">` : ''}
+        </div>
+        <div class="photo-upload-zone-sm" onclick="document.getElementById('act-photo-input-${i}').click()">
+          <span>📸</span>
+          <span id="act-photo-hint-${i}">${hasPhoto ? '✅ เปลี่ยน' : 'อัพโหลด'}</span>
+        </div>
+        <input type="file" id="act-photo-input-${i}" accept="image/*" style="display:none" onchange="handleActPhotoUpload(this,${i})">
+      </div>`;
+  }).join('');
+
+  showGenericAddModal(editIdx !== null ? '✏️ แก้ไขกิจกรรม' : '🎯 เพิ่มกิจกรรม', `
     <div class="form-group">
       <label class="form-label">ชื่อกิจกรรม <span class="required">*</span></label>
-      <input type="text" class="form-control" id="add-name" placeholder="เช่น ประธานสภานักเรียน, กิจกรรมชุมนุม">
+      <input type="text" class="form-control" id="add-name" value="${existing.name || ''}" placeholder="เช่น ประธานสภานักเรียน, กิจกรรมชุมนุม">
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">ปี</label>
-        <input type="text" class="form-control" id="add-year" placeholder="เช่น 2567-2568">
+        <label class="form-label">วันเดือนปีที่เริ่ม</label>
+        <input type="date" class="form-control" id="add-date-start" value="${existing.dateStart || ''}">
       </div>
       <div class="form-group">
-        <label class="form-label">บทบาท</label>
-        <input type="text" class="form-control" id="add-result" placeholder="เช่น ประธาน, สมาชิก">
+        <label class="form-label">วันเดือนปีที่สิ้นสุด</label>
+        <input type="date" class="form-control" id="add-date-end" value="${existing.dateEnd || ''}">
       </div>
     </div>
     <div class="form-group">
+      <label class="form-label">บทบาท</label>
+      <input type="text" class="form-control" id="add-result" value="${existing.result || ''}" placeholder="เช่น ประธาน, สมาชิก">
+    </div>
+    <div class="form-group">
       <label class="form-label">รายละเอียด</label>
-      <textarea class="form-control" id="add-description"></textarea>
+      <textarea class="form-control" id="add-description" placeholder="รายละเอียดกิจกรรม...">${existing.description || ''}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ใบประกาศนียบัตรหรือรางวัลที่ได้รับ</label>
+      <input type="text" class="form-control" id="add-cert-name" value="${existing.certificateName || ''}" placeholder="เช่น ใบประกาศนียบัตรเข้าร่วมกิจกรรม">
+    </div>
+    <div class="form-group">
+      <label class="form-label">📄 อัพโหลดภาพใบประกาศนียบัตรหรือรางวัล</label>
+      <div id="act-cert-preview" class="cert-preview" style="${existing.certificateData ? '' : 'display:none'}">
+        ${existing.certificateData ? `<img src="${existing.certificateData}" alt="ใบประกาศ" class="cert-preview-img">` : ''}
+      </div>
+      <div class="cert-upload-zone" onclick="document.getElementById('act-cert-input').click()">
+        <span>📎</span>
+        <span id="act-cert-hint">${existing.certificateData ? '✅ มีไฟล์อยู่แล้ว · คลิกเพื่อเปลี่ยน' : 'คลิกเพื่ออัพโหลดภาพใบประกาศ (ไม่เกิน 5MB)'}</span>
+      </div>
+      <input type="file" id="act-cert-input" accept="image/*" style="display:none" onchange="handleActCertUpload(this)">
+    </div>
+    <div class="form-group">
+      <label class="form-label">📸 ภาพกิจกรรม (สูงสุด 3 ภาพ)</label>
+      <div class="photo-upload-grid">${photoSlots}</div>
     </div>
   `, () => savePortfolioItem('activities', {
     name: getVal('add-name'),
     icon: '🎯',
-    year: getVal('add-year'),
+    dateStart: getVal('add-date-start'),
+    dateEnd: getVal('add-date-end'),
     result: getVal('add-result'),
-    description: getVal('add-description')
-  }));
+    description: getVal('add-description'),
+    certificateName: getVal('add-cert-name'),
+    certificateData: window._actCertData,
+    activityPhotos: [...(window._actPhotos || [null, null, null])]
+  }, editIdx));
 }
 
-function showAddVolunteerModal() {
-  showGenericAddModal('💚 เพิ่มงานอาสาสมัคร', `
+function showAddVolunteerModal(editIdx = null) {
+  const existing = editIdx !== null ? (state.studentData.portfolio.volunteer[editIdx] || {}) : {};
+  window._volCertData = existing.certificateData || null;
+  window._volPhotos   = [...(existing.activityPhotos || [null, null, null])];
+
+  const photoSlots = [0, 1, 2].map(i => {
+    const hasPhoto = !!window._volPhotos[i];
+    return `
+      <div class="photo-upload-slot">
+        <div id="vol-photo-preview-${i}" class="photo-slot-preview" style="${hasPhoto ? '' : 'display:none'}">
+          ${hasPhoto ? `<img src="${window._volPhotos[i]}" class="photo-slot-img">` : ''}
+        </div>
+        <div class="photo-upload-zone-sm" onclick="document.getElementById('vol-photo-input-${i}').click()">
+          <span>📸</span>
+          <span id="vol-photo-hint-${i}">${hasPhoto ? '✅ เปลี่ยน' : 'อัพโหลด'}</span>
+        </div>
+        <input type="file" id="vol-photo-input-${i}" accept="image/*" style="display:none" onchange="handleVolPhotoUpload(this,${i})">
+      </div>`;
+  }).join('');
+
+  showGenericAddModal(editIdx !== null ? '✏️ แก้ไขงานอาสาสมัคร' : '💚 เพิ่มงานอาสาสมัคร', `
     <div class="form-group">
       <label class="form-label">ชื่อกิจกรรม <span class="required">*</span></label>
-      <input type="text" class="form-control" id="add-name" placeholder="เช่น ค่ายอาสาพัฒนาโรงเรียน">
+      <input type="text" class="form-control" id="add-name" value="${existing.name || ''}" placeholder="เช่น ค่ายอาสาพัฒนาโรงเรียน">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">วันเดือนปีที่เริ่ม</label>
+        <input type="date" class="form-control" id="add-date-start" value="${existing.dateStart || ''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">วันเดือนปีที่สิ้นสุด</label>
+        <input type="date" class="form-control" id="add-date-end" value="${existing.dateEnd || ''}">
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">จำนวนชั่วโมง</label>
-        <input type="number" class="form-control" id="add-hours" placeholder="เช่น 48">
+        <input type="number" class="form-control" id="add-hours" value="${existing.hours || ''}" placeholder="เช่น 48">
       </div>
       <div class="form-group">
-        <label class="form-label">ปี</label>
-        <input type="text" class="form-control" id="add-year" placeholder="เช่น 2568">
+        <label class="form-label">หน่วยงาน/องค์กร</label>
+        <input type="text" class="form-control" id="add-organizer" value="${existing.organizer || ''}">
       </div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">หน่วยงาน/องค์กร</label>
-      <input type="text" class="form-control" id="add-organizer">
     </div>
     <div class="form-group">
       <label class="form-label">รายละเอียด</label>
-      <textarea class="form-control" id="add-description"></textarea>
+      <textarea class="form-control" id="add-description" placeholder="รายละเอียดกิจกรรม...">${existing.description || ''}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ใบประกาศนียบัตรที่ได้รับ</label>
+      <input type="text" class="form-control" id="add-cert-name" value="${existing.certificateName || ''}" placeholder="เช่น ใบประกาศนียบัตรจิตอาสา">
+    </div>
+    <div class="form-group">
+      <label class="form-label">📄 อัพโหลดภาพใบประกาศนียบัตร</label>
+      <div id="vol-cert-preview" class="cert-preview" style="${existing.certificateData ? '' : 'display:none'}">
+        ${existing.certificateData ? `<img src="${existing.certificateData}" alt="ใบประกาศ" class="cert-preview-img">` : ''}
+      </div>
+      <div class="cert-upload-zone" onclick="document.getElementById('vol-cert-input').click()">
+        <span>📎</span>
+        <span id="vol-cert-hint">${existing.certificateData ? '✅ มีไฟล์อยู่แล้ว · คลิกเพื่อเปลี่ยน' : 'คลิกเพื่ออัพโหลดภาพใบประกาศ (ไม่เกิน 5MB)'}</span>
+      </div>
+      <input type="file" id="vol-cert-input" accept="image/*" style="display:none" onchange="handleVolCertUpload(this)">
+    </div>
+    <div class="form-group">
+      <label class="form-label">📸 ภาพกิจกรรม (สูงสุด 3 ภาพ)</label>
+      <div class="photo-upload-grid">${photoSlots}</div>
     </div>
   `, () => savePortfolioItem('volunteer', {
     name: getVal('add-name'),
     icon: '💚',
+    dateStart: getVal('add-date-start'),
+    dateEnd: getVal('add-date-end'),
     hours: getVal('add-hours'),
-    year: getVal('add-year'),
     organizer: getVal('add-organizer'),
-    description: getVal('add-description')
-  }));
+    description: getVal('add-description'),
+    certificateName: getVal('add-cert-name'),
+    certificateData: window._volCertData,
+    activityPhotos: [...(window._volPhotos || [null, null, null])]
+  }, editIdx));
 }
 
 function savePortfolioItem(type, item, editIdx = null) {
@@ -2788,6 +2946,10 @@ function savePortfolioItem(type, item, editIdx = null) {
   window._campPhotos    = [null, null, null];
   window._awardCertData = null;
   window._awardPhotos   = [null, null, null];
+  window._actCertData   = null;
+  window._actPhotos     = [null, null, null];
+  window._volCertData   = null;
+  window._volPhotos     = [null, null, null];
   saveData();
   closeModal();
   renderPortfolio();

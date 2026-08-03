@@ -4518,57 +4518,118 @@ function renderRoundContent(round) {
   if (round === 'round4') { renderRound4(area);   return; }
 }
 
-// ---- ROUND ALL: ภาพรวม (original behavior) ----
+// ---- ROUND ALL: ภาพรวม — แสดงหลักสูตรที่นักเรียนเลือกไว้ พร้อมประเมินทุกรอบ ----
 function renderRoundAll(area) {
-  const interests = state.studentData.interests || [];
-  const wishlist  = state.wishlist || [];
-  const prefs     = getPreferences();
+  const prefs = getPreferences();
+  const sd    = state.studentData;
+  const gpa   = parseFloat(sd.gpa.cumulative) || 0;
+  const studentScores = sd.scores || {};
+  const port  = sd.portfolio || {};
 
-  function sortPriority(p, score) {
-    const inPref    = prefs.includes(p.id);
-    const liked     = wishlist.includes(p.id);
-    const matched   = interests.length > 0 && interests.includes(p.category);
-    if (inPref && matched) return 4000 + score;
-    if (inPref)            return 3000 + score;
-    if (liked && matched)  return 2500 + score;
-    if (liked)             return 2000 + score;
-    if (matched)           return 1000 + score;
-    return score;
+  // Compute portfolio strength score (0-3)
+  const portKeys = ['camps','activities','awards','competitions','volunteer'];
+  const portCats = portKeys.filter(k => (port[k]||[]).length > 0).length;
+  const portScore = portCats >= 4 ? 3 : portCats >= 2 ? 2 : portCats >= 1 ? 1 : 0;
+
+  if (prefs.length === 0) {
+    area.innerHTML = `
+      <div class="empty-state" style="padding:40px 0">
+        <div class="empty-state-icon">🎓</div>
+        <div class="empty-state-title">ยังไม่ได้เลือกหลักสูตรที่สนใจ</div>
+        <div class="empty-state-desc">ไปที่หน้า <strong>โปรไฟล์ → 10 อันดับ</strong> เพื่อเลือกหลักสูตรที่ต้องการประเมินก่อนนะครับ</div>
+        <button class="btn btn-primary btn-sm" style="margin-top:16px" onclick="navigate('profile')">ไปหน้าโปรไฟล์</button>
+      </div>`;
+    return;
   }
 
-  const allRecs = TCAS_DATA.programs
-    .map(p => ({ program: p, result: calculateMatchScore(p, state.studentData) }))
-    .sort((a, b) => sortPriority(b.program, b.result.score) - sortPriority(a.program, a.result.score));
+  const programs = prefs.map(id => TCAS_DATA.programs.find(p => p.id === id)).filter(Boolean);
 
-  const top10 = allRecs.slice(0, 10);
-  const hasFilters = interests.length > 0 || wishlist.length > 0 || prefs.length > 0;
-  const modeLabel = prefs.length > 0 ? '🏆 จัดตาม: 10 อันดับที่สนใจ + คะแนน'
-    : hasFilters ? '🎯 จัดตาม: สาขาที่สนใจ + คะแนน' : '📊 จัดตาม: คะแนนความเหมาะสม';
+  const ROUND_META = {
+    1: { label:'รอบ 1 Portfolio', icon:'📁' },
+    2: { label:'รอบ 2 โควตา',    icon:'🏷️' },
+    3: { label:'รอบ 3 Admission', icon:'🎯' },
+    4: { label:'รอบ 4 รับตรง',  icon:'🏛️' },
+  };
+
+  function quickAssess(prog, rnum) {
+    const minGPA = parseFloat(prog.minGPA) || 0;
+    if (rnum === 1) {
+      const gpaOk = gpa >= minGPA || minGPA === 0;
+      if (!gpaOk)           return { color:'#EF4444', label:'GPA ไม่ถึงเกณฑ์' };
+      if (portScore >= 3)   return { color:'#10B981', label:'โอกาสสูง' };
+      if (portScore >= 1)   return { color:'#F59E0B', label:'พอมีโอกาส' };
+      return                       { color:'#EF4444', label:'ต้องเพิ่มพอร์ต' };
+    }
+    if (rnum === 2) {
+      const gap = gpa - minGPA;
+      if (minGPA === 0 || gap >= 0.25) return { color:'#10B981', label:'GPA ผ่านเกณฑ์' };
+      if (gap >= 0)                    return { color:'#F59E0B', label:'GPA ผ่าน (ชายขอบ)' };
+      return                                  { color:'#EF4444', label:`GPA ขาด ${Math.abs(gap).toFixed(2)}` };
+    }
+    if (rnum === 3) {
+      const ws = calculateWeightedScore(prog, studentScores);
+      if (ws.noData) return { color:'#94A3B8', label:'ยังไม่กรอกคะแนน' };
+      const hist = TCAS_HISTORICAL_STATS[prog.id];
+      if (!hist)    return { color:'#94A3B8', label:'ยังไม่มีข้อมูล' };
+      const lastY  = Object.keys(hist).sort().pop();
+      const tier   = getAssessmentTier(ws.score, hist[lastY].min);
+      return { color: tier.color, label: tier.label };
+    }
+    return { color:'#6B7280', label:'รับตรงอิสระ' };
+  }
+
+  const ALL_ROUNDS = [1, 2, 3, 4];
+
+  const cardsHtml = programs.map((prog, i) => {
+    const uni      = getUniversityById(prog.universityId);
+    const progRounds = new Set(prog.rounds || []);
+
+    const roundPills = ALL_ROUNDS.map(rnum => {
+      const meta = ROUND_META[rnum];
+      if (!progRounds.has(rnum)) {
+        return `<div class="prog-round-pill" style="border-color:var(--border);background:var(--surface-2);opacity:0.55">
+          <span class="prog-round-label">${meta.icon} ${meta.label}</span>
+          <span class="prog-round-chance" style="color:var(--text-muted)">ไม่เปิดรับสมัครรอบนี้</span>
+        </div>`;
+      }
+      const assess = quickAssess(prog, rnum);
+      return `<div class="prog-round-pill" style="border-color:${assess.color}40;background:${assess.color}0D">
+        <span class="prog-round-label">${meta.icon} ${meta.label}</span>
+        <span class="prog-round-chance" style="color:${assess.color}">${assess.label}</span>
+      </div>`;
+    }).join('');
+
+    // Show: faculty / program / programFull (if different from program)
+    const subLine = prog.programFull && prog.programFull !== prog.program
+      ? `<div class="prog-overview-sub">${prog.faculty}</div>
+         <div class="prog-overview-full">${prog.programFull}</div>`
+      : `<div class="prog-overview-sub">${prog.faculty}</div>`;
+
+    return `
+      <div class="prog-overview-card">
+        <div class="prog-overview-rank">${i + 1}</div>
+        <div class="prog-overview-body">
+          <div class="prog-overview-header">
+            <span class="pref-uni-tag" style="background:${uni.color};color:#fff;font-size:0.65rem;padding:1px 7px;border-radius:4px;font-weight:700;white-space:nowrap;flex-shrink:0">${uni.shortName}</span>
+            <div style="min-width:0;flex:1">
+              <div class="prog-overview-name">${prog.program}</div>
+              ${subLine}
+            </div>
+          </div>
+          <div class="prog-overview-rounds">${roundPills}</div>
+          <button class="prog-overview-detail-btn" style="align-self:flex-end;margin-top:6px" onclick="showProgramDetail('${prog.id}')">รายละเอียด →</button>
+        </div>
+      </div>`;
+  }).join('');
 
   area.innerHTML = `
-    <div class="interest-selector-card mb-4">
-      <div class="interest-selector-header">
-        <span class="interest-selector-title">🔍 สาขาที่สนใจ</span>
-        ${interests.length > 0 ? `<button class="btn-link text-danger" onclick="clearInterests()" style="font-size:0.78rem">✕ ล้างทั้งหมด</button>` : ''}
+    <div class="round-assess-header" style="--rhc:var(--primary)">
+      <div class="round-assess-title">📊 ภาพรวม ${programs.length} หลักสูตรที่เลือก</div>
+      <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px">
+        ประเมินทุกรอบที่แต่ละหลักสูตรเปิดรับ · กดแต่ละรอบด้านบนเพื่อดูรายละเอียด
       </div>
-      <div class="interest-chips">
-        ${ALL_CATEGORIES.map(cat => {
-          const active = interests.includes(cat.id);
-          return `<button class="interest-chip ${active?'active':''}" onclick="toggleInterest('${cat.id}')">
-            ${cat.icon} ${cat.label}${active ? '<span class="interest-chip-check">✓</span>' : ''}
-          </button>`;
-        }).join('')}
-      </div>
-      ${prefs.length > 0 ? `<div class="interest-wishlist-hint">🏆 มี ${prefs.length} อันดับที่บันทึกไว้ — จะถูกยกขึ้นด้านบน</div>` : ''}
     </div>
-
-    <div class="rec-header mb-3">
-      <span class="section-title" style="margin:0">🏆 10 อันดับที่เหมาะสม</span>
-      <span class="badge" style="background:var(--surface-2);color:var(--text-secondary);font-size:0.72rem">${modeLabel}</span>
-    </div>
-    <div class="rec-ranking-list">
-      ${top10.map((r, i) => renderRecRankCard(r.program, r.result, i+1, interests, wishlist)).join('')}
-    </div>`;
+    <div class="prog-overview-list">${cardsHtml}</div>`;
 }
 
 // ---- ROUND 1: Portfolio ----
@@ -4595,37 +4656,22 @@ function renderRound1(area) {
   const r1Set    = new Set(TCAS_DATA.programs.filter(p => p.rounds.includes(1)).map(p => p.id));
   const selected = prefs.filter(id => r1Set.has(id))
                         .map(id => TCAS_DATA.programs.find(p => p.id === id)).filter(Boolean);
-  const needed   = Math.max(0, 10 - selected.length);
-  const fallbacks = getGpaRoundFallbacks(prefs, selected, gpa, 1, needed);
-  const totalCount = selected.length + fallbacks.length;
 
-  _r1ShownIds = [...selected.map(p => p.id), ...fallbacks.map(p => p.id)];
+  _r1ShownIds = selected.map(p => p.id);
   _r1SelectedCtx = selected;
   _r1Area = area;
   _r1PortScore = portLevel.score;
 
-  const sl = (text, count, color) =>
-    `<div class="pref-section-label" style="margin-top:16px;border-left:3px solid ${color};padding-left:8px;background:none">
-       ${text} <span style="font-weight:400;color:var(--text-muted);font-size:0.8rem">(${count} หลักสูตร)</span>
-     </div>`;
-
   const selectedHtml = selected.length > 0
-    ? sl('🎓 คณะที่นักเรียนเลือกเอง', selected.length, 'var(--primary)')
-      + `<div class="round-assess-list" style="margin-top:8px">
-           ${selected.map(p => renderRoundAssessCard(p, 'round1', gpa, portLevel.score, prefs)).join('')}
-         </div>` : '';
+    ? `<div class="round-assess-list">
+         ${selected.map(p => renderRoundAssessCard(p, 'round1', gpa, portLevel.score, prefs)).join('')}
+       </div>` : '';
 
-  const fallbackHtml = fallbacks.length > 0
-    ? sl('💡 คณะที่ระบบแนะนำเพิ่มเติม', fallbacks.length, 'var(--accent)')
-      + `<div class="round-assess-list" style="margin-top:8px">
-           ${fallbacks.map(p => renderRoundAssessCard(p, 'round1', gpa, portLevel.score, prefs)).join('')}
-         </div>` : '';
-
-  const emptyHtml = totalCount === 0
+  const emptyHtml = selected.length === 0
     ? `<div class="empty-state" style="padding:32px 0">
          <div class="empty-state-icon">📁</div>
-         <div class="empty-state-title">ยังไม่มีหลักสูตรที่จะประเมิน</div>
-         <div class="empty-state-desc">ไปที่หน้า <strong>เลือกสาขา</strong> เพื่อเพิ่มหลักสูตรที่สนใจก่อนนะครับ</div>
+         <div class="empty-state-title">หลักสูตรที่คุณเลือกไม่มีรอบ 1</div>
+         <div class="empty-state-desc">หลักสูตรที่เลือกใน <strong>โปรไฟล์ → 10 อันดับ</strong> ไม่มีการเปิดรับรอบ 1 Portfolio<br>ลองดูรอบอื่น หรือเพิ่มหลักสูตรที่เปิดรอบ 1</div>
        </div>` : '';
 
   area.innerHTML = `
@@ -4643,23 +4689,12 @@ function renderRound1(area) {
         ${portLevel.label} · รวม ${totalItems} รายการ ใน ${totalCategories} หมวด
       </div>
       ${totalItems === 0 ? `<div class="port-add-hint"><button class="btn btn-outline btn-sm" onclick="navigate('portfolio')">✏️ เพิ่มข้อมูลพอร์ตโฟลิโอ</button></div>` : ''}
-      <div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px">
-        รวม <strong>${totalCount}/10</strong> หลักสูตร
-        ${selected.length > 0 ? ` · <strong style="color:var(--primary)">${selected.length} อันดับที่คุณเลือก</strong>` : ''}
-        ${fallbacks.length > 0 ? ` + <strong style="color:var(--accent)">${fallbacks.length} ที่ระบบแนะนำ</strong>` : ''}
-      </div>
+      ${selected.length > 0 ? `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px">
+        หลักสูตรที่เลือก <strong>${selected.length}</strong> หลักสูตรที่เปิดรับรอบ 1
+      </div>` : ''}
     </div>
 
-    ${emptyHtml}${selectedHtml}${fallbackHtml}
-
-    ${totalCount > 0 ? `
-    <div class="r3-expand-wrap" id="r1-expand-wrap">
-      <button class="r3-expand-btn" onclick="expandR1Extra()">
-        🔍 ดูหลักสูตรแนะนำเพิ่มเติม นอกเหนือจาก 10 อันดับ
-        <span class="r3-expand-sub">เฉพาะที่ GPAX ผ่านเกณฑ์ · แสดงทั้งหมดครั้งเดียว</span>
-      </button>
-    </div>
-    <div id="r1-extra-section"></div>` : ''}`;
+    ${emptyHtml}${selectedHtml}`;
 
   setupRoundBackToTop(area);
 }
@@ -4695,67 +4730,40 @@ function renderRound2(area) {
   const r2Set    = new Set(TCAS_DATA.programs.filter(p => p.rounds.includes(2)).map(p => p.id));
   const selected = prefs.filter(id => r2Set.has(id))
                         .map(id => TCAS_DATA.programs.find(p => p.id === id)).filter(Boolean);
-  const needed   = Math.max(0, 10 - selected.length);
-  const fallbacks = getGpaRoundFallbacks(prefs, selected, gpa, 2, needed);
-  const totalCount = selected.length + fallbacks.length;
 
-  _r2ShownIds = [...selected.map(p => p.id), ...fallbacks.map(p => p.id)];
+  _r2ShownIds = selected.map(p => p.id);
   _r2SelectedCtx = selected;
   _r2Area = area;
 
-  const allShown = [...selected, ...fallbacks];
-  const passed = allShown.filter(p => gpa >= (parseFloat(p.minGPA)||0)).length;
-  const failed  = allShown.length - passed;
-
-  const sl = (text, count, color) =>
-    `<div class="pref-section-label" style="margin-top:16px;border-left:3px solid ${color};padding-left:8px;background:none">
-       ${text} <span style="font-weight:400;color:var(--text-muted);font-size:0.8rem">(${count} หลักสูตร)</span>
-     </div>`;
+  const passed = selected.filter(p => gpa >= (parseFloat(p.minGPA)||0)).length;
+  const failed  = selected.length - passed;
 
   const selectedHtml = selected.length > 0
-    ? sl('🎓 คณะที่นักเรียนเลือกเอง', selected.length, 'var(--primary)')
-      + `<div class="round-assess-list" style="margin-top:8px">
-           ${selected.map(p => renderRoundAssessCard(p, 'round2', gpa, 0, prefs)).join('')}
-         </div>` : '';
+    ? `<div class="round-assess-list">
+         ${selected.map(p => renderRoundAssessCard(p, 'round2', gpa, 0, prefs)).join('')}
+       </div>` : '';
 
-  const fallbackHtml = fallbacks.length > 0
-    ? sl('💡 คณะที่ระบบแนะนำเพิ่มเติม', fallbacks.length, 'var(--accent)')
-      + `<div class="round-assess-list" style="margin-top:8px">
-           ${fallbacks.map(p => renderRoundAssessCard(p, 'round2', gpa, 0, prefs)).join('')}
-         </div>` : '';
-
-  const emptyHtml = totalCount === 0
+  const emptyHtml = selected.length === 0
     ? `<div class="empty-state" style="padding:32px 0">
          <div class="empty-state-icon">🏷️</div>
-         <div class="empty-state-title">ยังไม่มีหลักสูตรที่จะประเมิน</div>
-         <div class="empty-state-desc">ไปที่หน้า <strong>เลือกสาขา</strong> เพื่อเพิ่มหลักสูตรที่สนใจก่อนนะครับ</div>
+         <div class="empty-state-title">หลักสูตรที่คุณเลือกไม่มีรอบ 2</div>
+         <div class="empty-state-desc">หลักสูตรที่เลือกใน <strong>โปรไฟล์ → 10 อันดับ</strong> ไม่มีการเปิดรับรอบ 2 โควตา<br>ลองดูรอบอื่น หรือเพิ่มหลักสูตรที่เปิดรอบ 2</div>
        </div>` : '';
 
   area.innerHTML = `
     <div class="round-assess-header" style="--rhc:#10B981">
       <div class="round-assess-title">🏷️ ประเมินรอบ 2 โควตา</div>
-      <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
+      ${selected.length > 0 ? `<div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
         ${passed > 0 ? `<div class="quota-summary-chip quota-pass">✅ GPA ผ่านเกณฑ์ ${passed} สาขา</div>` : ''}
         ${failed > 0 ? `<div class="quota-summary-chip quota-fail">❌ GPA ต่ำกว่าเกณฑ์ ${failed} สาขา</div>` : ''}
-      </div>
+      </div>` : ''}
       <div style="font-size:0.8rem;color:var(--text-muted);margin-top:6px">
-        รวม <strong>${totalCount}/10</strong> หลักสูตร
-        ${selected.length > 0 ? ` · <strong style="color:var(--primary)">${selected.length} อันดับที่คุณเลือก</strong>` : ''}
-        ${fallbacks.length > 0 ? ` + <strong style="color:var(--accent)">${fallbacks.length} ที่ระบบแนะนำ</strong>` : ''}
-        · ⚠️ อาจมีเงื่อนไขโควตาพื้นที่เพิ่มเติม — ตรวจสอบจากมหาวิทยาลัยด้วย
+        ${selected.length > 0 ? `หลักสูตรที่เลือก <strong>${selected.length}</strong> หลักสูตรที่เปิดรับรอบ 2` : ''}
+        ${selected.length > 0 ? `· ⚠️ อาจมีเงื่อนไขโควตาพื้นที่เพิ่มเติม — ตรวจสอบจากมหาวิทยาลัยด้วย` : ''}
       </div>
     </div>
 
-    ${emptyHtml}${selectedHtml}${fallbackHtml}
-
-    ${totalCount > 0 ? `
-    <div class="r3-expand-wrap" id="r2-expand-wrap">
-      <button class="r3-expand-btn" onclick="expandR2Extra()">
-        🔍 ดูหลักสูตรแนะนำเพิ่มเติม นอกเหนือจาก 10 อันดับ
-        <span class="r3-expand-sub">เฉพาะที่ GPAX ผ่านเกณฑ์ · แสดงทั้งหมดครั้งเดียว</span>
-      </button>
-    </div>
-    <div id="r2-extra-section"></div>` : ''}`;
+    ${emptyHtml}${selectedHtml}`;
 
   setupRoundBackToTop(area);
 }
@@ -4800,71 +4808,40 @@ function renderRound3(area) {
                         .map(id => TCAS_DATA.programs.find(p => p.id === id))
                         .filter(Boolean);
 
-  // System fills remainder to reach exactly 10
-  const needed   = Math.max(0, 10 - selected.length);
-  const fallbacks = getFallbackRecommendations(prefs, studentScores, needed);
-
-  const totalCount = selected.length + fallbacks.length;
-
-  const sectionLabel = (text, count, color) =>
-    `<div class="pref-section-label" style="margin-top:16px;border-left:3px solid ${color};padding-left:8px;background:none">
-       ${text} <span style="font-weight:400;color:var(--text-muted);font-size:0.8rem">(${count} หลักสูตร)</span>
-     </div>`;
+  // Store context (no fallbacks — only student's own selections)
+  _r3ShownIds  = selected.map(p => p.id);
+  _r3SelectedCtx = selected;
+  _r3Area = area;
 
   const selectedHtml = selected.length > 0
-    ? sectionLabel('🎓 คณะที่นักเรียนเลือกเอง', selected.length, 'var(--primary)')
-      + `<div class="round-assess-list" style="margin-top:8px">
-           ${selected.map((p, i) => renderAssessmentCard(p, studentScores, i + 1, true)).join('')}
-         </div>`
-    : '';
-
-  const fallbackHtml = fallbacks.length > 0
-    ? sectionLabel('💡 คณะที่ระบบแนะนำเพิ่มเติม', fallbacks.length, 'var(--accent)')
-      + `<div class="round-assess-list" style="margin-top:8px">
-           ${fallbacks.map((p, i) => renderAssessmentCard(p, studentScores, selected.length + i + 1, false)).join('')}
-         </div>`
-    : '';
-
-  const emptyHtml = totalCount === 0
-    ? `<div class="empty-state" style="padding:40px 0">
-         <div class="empty-state-icon">📋</div>
-         <div class="empty-state-title">ยังไม่มีข้อมูลหลักสูตรที่จะประเมิน</div>
-         <div class="empty-state-desc">ไปที่หน้า <strong>เลือกสาขา</strong> เพื่อเพิ่มหลักสูตรที่สนใจก่อนนะครับ</div>
+    ? `<div class="round-assess-list">
+         ${selected.map((p, i) => renderAssessmentCard(p, studentScores, i + 1, true)).join('')}
        </div>`
     : '';
 
-  // Store context for expand function
-  _r3ShownIds  = [...selected.map(p => p.id), ...fallbacks.map(p => p.id)];
-  _r3SelectedCtx = selected;
-  _r3Area = area;
+  const emptyHtml = selected.length === 0
+    ? `<div class="empty-state" style="padding:40px 0">
+         <div class="empty-state-icon">🎯</div>
+         <div class="empty-state-title">หลักสูตรที่คุณเลือกไม่มีรอบ 3</div>
+         <div class="empty-state-desc">หลักสูตรที่เลือกใน <strong>โปรไฟล์ → 10 อันดับ</strong> ไม่มีการเปิดรับรอบ 3 Admission<br>ลองดูรอบอื่น หรือเพิ่มหลักสูตรที่เปิดรอบ 3</div>
+       </div>`
+    : '';
 
   area.innerHTML = `
     <div class="round-assess-header" style="--rhc:#F59E0B">
       <div class="round-assess-title">🎯 ประเมินโอกาส รอบ 3 Admission</div>
       <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px">
-        รวม <strong>${totalCount}/10</strong> หลักสูตร · ใช้คะแนน TGAT / TPAT / A-Level
-        ${selected.length > 0 ? ` · <strong style="color:var(--primary)">${selected.length} อันดับที่คุณเลือก</strong>` : ''}
-        ${fallbacks.length > 0 ? ` + <strong style="color:var(--accent)">${fallbacks.length} ที่ระบบแนะนำ</strong>` : ''}
+        ${selected.length > 0 ? `หลักสูตรที่เลือก <strong>${selected.length}</strong> หลักสูตรที่เปิดรับรอบ 3 · ใช้คะแนน TGAT / TPAT / A-Level` : ''}
       </div>
     </div>
 
-    <div class="r3-disclaimer">
+    ${selected.length > 0 ? `<div class="r3-disclaimer">
       ⚠️ <strong>คำเตือน:</strong> การประเมินนี้ใช้เกณฑ์น้ำหนักคะแนนทั่วไปของ TCAS69
       และข้อมูลผลคะแนนย้อนหลัง ไม่ใช่เกณฑ์อย่างเป็นทางการของแต่ละสถาบัน
       ผลที่แสดงเป็นเพียงการ<em>ประมาณการโอกาส</em> ไม่ใช่การรับประกันผล
-    </div>
+    </div>` : ''}
 
-    ${emptyHtml}${selectedHtml}${fallbackHtml}
-
-    ${totalCount > 0 ? `
-    <div class="r3-expand-wrap" id="r3-expand-wrap">
-      <button class="r3-expand-btn" onclick="expandR3Extra()">
-        🔍 ดูหลักสูตรแนะนำเพิ่มเติม นอกเหนือจาก 10 อันดับ
-        <span class="r3-expand-sub">เฉพาะโอกาสปานกลางขึ้นไป · แสดงทั้งหมดครั้งเดียว</span>
-      </button>
-    </div>
-    <div id="r3-extra-section"></div>
-    ` : ''}`;
+    ${emptyHtml}${selectedHtml}`;
 
   setupRoundBackToTop(area);
 }
@@ -4872,21 +4849,6 @@ function renderRound3(area) {
 function setupRoundBackToTop(area) {
   if (_roundObserver) { _roundObserver.disconnect(); _roundObserver = null; }
   document.getElementById('round-back-top')?.remove();
-
-  const btn = document.createElement('button');
-  btn.id        = 'round-back-top';
-  btn.className = 'r3-back-top-btn';
-  btn.innerHTML = '↑ กลับขึ้นบน';
-  btn.onclick   = () => area.querySelector('.round-assess-header')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  document.body.appendChild(btn);
-
-  const sentinel = area.querySelector('.round-assess-header');
-  if (sentinel) {
-    _roundObserver = new IntersectionObserver(([e]) => {
-      btn.classList.toggle('r3-back-top-btn--visible', !e.isIntersecting);
-    }, { threshold: 0 });
-    _roundObserver.observe(sentinel);
-  }
 }
 
 function expandR3Extra() {
@@ -4925,31 +4887,26 @@ function toggleInterestAndRefresh(catId) {
 // ---- ROUND 4: รับตรงอิสระ ----
 function renderRound4(area) {
   const prefs = getPreferences();
-  let r4Programs = TCAS_DATA.programs.filter(p => p.rounds.includes(4));
-
-  r4Programs.sort((a, b) => {
-    const ai = prefs.indexOf(a.id), bi = prefs.indexOf(b.id);
-    if (ai >= 0 && bi >= 0) return ai - bi;
-    if (ai >= 0) return -1;
-    if (bi >= 0) return 1;
-    return 0;
-  });
+  const r4Set = new Set(TCAS_DATA.programs.filter(p => p.rounds.includes(4)).map(p => p.id));
+  const selected = prefs.filter(id => r4Set.has(id))
+                        .map(id => TCAS_DATA.programs.find(p => p.id === id)).filter(Boolean);
 
   area.innerHTML = `
     <div class="round-assess-header" style="--rhc:#EF4444">
       <div class="round-assess-title">🏛️ รอบ 4 รับตรงอิสระ</div>
       <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px">
         มหาวิทยาลัยรับสมัครโดยตรง หลังจากรอบ 3 เสร็จสิ้น สำหรับที่นั่งที่เหลือ
+        ${selected.length > 0 ? `· หลักสูตรที่เลือก <strong>${selected.length}</strong> หลักสูตรที่เปิดรับรอบ 4` : ''}
       </div>
     </div>
-    ${r4Programs.length === 0 ? `
+    ${selected.length === 0 ? `
       <div class="empty-state" style="padding:32px 0">
         <div class="empty-state-icon">🏛️</div>
-        <div class="empty-state-title">ไม่พบสาขาที่รับรอบ 4 ในฐานข้อมูล</div>
-        <div class="empty-state-desc">ตรวจสอบเพิ่มเติมจากเว็บไซต์มหาวิทยาลัยโดยตรง</div>
+        <div class="empty-state-title">หลักสูตรที่คุณเลือกไม่มีรอบ 4</div>
+        <div class="empty-state-desc">หลักสูตรที่เลือกใน <strong>โปรไฟล์ → 10 อันดับ</strong> ไม่มีการเปิดรับรอบ 4 รับตรงอิสระ</div>
       </div>` : `
       <div class="round-assess-list">
-        ${r4Programs.map(p => renderRoundAssessCard(p, 'round4', 0, 0, prefs)).join('')}
+        ${selected.map(p => renderRoundAssessCard(p, 'round4', 0, 0, prefs)).join('')}
       </div>`}`;
 }
 

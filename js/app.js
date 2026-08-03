@@ -744,21 +744,19 @@ function renderProfile() {
           </div>
           <div class="form-group">
             <label class="form-label">โปรแกรม</label>
-            <select class="form-control" id="prof-program" onchange="onProfileInput('program', this.value)">
-              <option value="">-- เลือกโปรแกรม --</option>
-              <option value="EP" ${p.program === 'EP' ? 'selected' : ''}>English Program [EP]</option>
-              <option value="IEP" ${p.program === 'IEP' ? 'selected' : ''}>Intensive English Program [IEP]</option>
-              <option value="GP" ${p.program === 'GP' ? 'selected' : ''}>General Program [GP]</option>
-            </select>
+            ${buildDropdown('prof-program', [
+              {value:'', label:'-- เลือกโปรแกรม --'},
+              {value:'EP', label:'English Program [EP]'},
+              {value:'IEP', label:'Intensive English Program [IEP]'},
+              {value:'GP', label:'General Program [GP]'}
+            ], p.program || '', val => onProfileInput('program', val))}
           </div>
           <div class="form-group">
             <label class="form-label">แผนการเรียน</label>
-            <select class="form-control" id="prof-studyPlan" onchange="onProfileInput('studyPlan', this.value)">
-              <option value="">-- เลือกแผนการเรียน --</option>
-              ${['แผนการเรียนเตรียมแพทย์','แผนการเรียนเตรียมเภสัช-สหเวช','แผนการเรียนเตรียมวิศวะ','แผนการเรียนเตรียมสถาปัตย์','แผนการเรียนเตรียมวิทย์-คอม','แผนการเรียนเตรียมบริหาร-ธุรกิจ','แผนการเรียนเตรียมนิเทศ-มนุษย์','แผนการเรียนเตรียมศิลปกรรม'].map(v =>
-                `<option value="${v}" ${p.studyPlan === v ? 'selected' : ''}>${v}</option>`
-              ).join('')}
-            </select>
+            ${buildDropdown('prof-studyPlan', [
+              {value:'', label:'-- เลือกแผนการเรียน --'},
+              ...['แผนการเรียนเตรียมแพทย์','แผนการเรียนเตรียมเภสัช-สหเวช','แผนการเรียนเตรียมวิศวะ','แผนการเรียนเตรียมสถาปัตย์','แผนการเรียนเตรียมวิทย์-คอม','แผนการเรียนเตรียมบริหาร-ธุรกิจ','แผนการเรียนเตรียมนิเทศ-มนุษย์','แผนการเรียนเตรียมศิลปกรรม'].map(v => ({value:v, label:v}))
+            ], p.studyPlan || '', val => onProfileInput('studyPlan', val))}
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -971,6 +969,39 @@ function setPrefUni(uniId) {
 }
 
 // ---- Custom University Dropdown ----
+/* ---- Generic Custom Dropdown (replaces native <select> everywhere) ---- */
+const _dropdownOnChange = {};
+
+function buildDropdown(id, options, currentVal, onChangeFn) {
+  _dropdownOnChange[id] = onChangeFn || null;
+  const current = options.find(o => String(o.value) === String(currentVal));
+  const label = current ? current.label : (options[0]?.label || '');
+  const items = options.map(o =>
+    `<div class="uni-dropdown-item${String(o.value) === String(currentVal) ? ' selected' : ''}"
+          onclick="pickDropdown(event,'${id}','${String(o.value).replace(/\\/g,'\\\\').replace(/'/g,'\\x27')}')">
+      ${o.label}
+    </div>`
+  ).join('');
+  const safeVal = String(currentVal ?? options[0]?.value ?? '');
+  return `<div class="uni-dropdown" id="${id}" data-value="${safeVal.replace(/"/g,'&quot;')}">
+    <button type="button" class="uni-dropdown-btn" id="${id}-btn" onclick="toggleUniPicker('${id}')">${label}</button>
+    <div class="uni-dropdown-list" id="${id}-list">${items}</div>
+  </div>`;
+}
+
+function pickDropdown(e, id, val) {
+  e.stopPropagation();
+  const label = e.currentTarget.textContent.trim();
+  const btn = document.getElementById(id + '-btn');
+  if (btn) btn.textContent = label;
+  document.querySelectorAll(`#${id}-list .uni-dropdown-item`).forEach(el => el.classList.remove('selected'));
+  e.currentTarget.classList.add('selected');
+  document.getElementById(id + '-list')?.classList.remove('open');
+  const container = document.getElementById(id);
+  if (container) container.dataset.value = val;
+  _dropdownOnChange[id]?.(val);
+}
+
 function uniDropdownHTML(id, selectedId) {
   const uniLabel = u => `${u.shortName} - ${u.name}`;
   const curLabel = selectedId
@@ -1927,16 +1958,13 @@ function renderMistakeLogSection() {
   container.innerHTML = `
     <div class="mb-3" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-primary btn-sm" onclick="openMistakeLogForm(null)">+ บันทึกข้อผิดพลาด</button>
-      ${usedSubjectKeys.length ? `
-        <select class="form-control" style="width:auto" onchange="onMistakeLogFilterChange(this.value)">
-          <option value="all" ${filter === 'all' ? 'selected' : ''}>ทุกวิชา</option>
-          ${usedSubjectKeys.map(k => {
+      ${usedSubjectKeys.length ? buildDropdown('mistake-filter', [
+          {value:'all', label:'ทุกวิชา'},
+          ...usedSubjectKeys.map(k => {
             const info = subjects.find(s => s.key === k);
-            if (!info) return '';
-            return `<option value="${k}" ${filter === k ? 'selected' : ''}>${info.icon} ${info.name}</option>`;
-          }).join('')}
-        </select>
-      ` : ''}
+            return info ? {value:k, label:`${info.icon} ${info.name}`} : null;
+          }).filter(Boolean)
+        ], filter, val => onMistakeLogFilterChange(val)) : ''}
     </div>
 
     ${state.mistakeLogFormMode ? renderMistakeLogForm() : ''}
@@ -2005,10 +2033,10 @@ function renderMistakeLogForm() {
         </div>
         <div class="form-group" style="flex:2;min-width:200px">
           <label class="form-label">วิชา</label>
-          <select class="form-control" onchange="onMistakeLogDraftInput('subject', this.value)">
-            <option value="">— เลือกวิชา —</option>
-            ${subjects.map(s => `<option value="${s.key}" ${d.subject === s.key ? 'selected' : ''}>${s.icon} ${s.name}</option>`).join('')}
-          </select>
+          ${buildDropdown('mistake-subject', [
+            {value:'', label:'— เลือกวิชา —'},
+            ...subjects.map(s => ({value:s.key, label:`${s.icon} ${s.name}`}))
+          ], d.subject || '', val => onMistakeLogDraftInput('subject', val))}
         </div>
       </div>
 
@@ -2216,19 +2244,16 @@ function renderPortfolio() {
   container.innerHTML = `
     <div class="tab-bar">
       <button class="tab-btn active" onclick="switchPortfolioTab(this,'camps')">⛺ ค่าย</button>
-      <button class="tab-btn" onclick="switchPortfolioTab(this,'awards')">🏆 รางวัล</button>
-      <button class="tab-btn" onclick="switchPortfolioTab(this,'competitions')">🥊 การแข่งขัน</button>
+      <button class="tab-btn" onclick="switchPortfolioTab(this,'awards')">🏆 การแข่งขัน&รางวัล</button>
       <button class="tab-btn" onclick="switchPortfolioTab(this,'activities')">🎯 กิจกรรม</button>
       <button class="tab-btn" onclick="switchPortfolioTab(this,'volunteer')">💚 อาสาสมัคร</button>
     </div>
 
     <div id="port-tab-camps" class="tab-panel active">
-      ${renderPortfolioList('camps', '⛺', 'ค่ายวิชาการและกิจกรรม', 'ยังไม่มีค่าย', 'showAddCampModal')}
+      ${renderPortfolioList('camps', '⛺', 'Open House และค่าย', 'ยังไม่มีค่าย', 'showAddCampModal')}
     </div>
     <div id="port-tab-awards" class="tab-panel">
       ${renderPortfolioList('awards', '🏆', 'รางวัลที่ได้รับ', 'ยังไม่มีรางวัล', 'showAddAwardModal')}
-    </div>
-    <div id="port-tab-competitions" class="tab-panel">
       ${renderPortfolioList('competitions', '🥊', 'การแข่งขัน', 'ยังไม่มีการแข่งขัน', 'showAddCompModal')}
     </div>
     <div id="port-tab-activities" class="tab-panel">
@@ -2307,17 +2332,33 @@ function renderPortfolioItem(type, item, idx, defaultIcon) {
       <div class="portfolio-item-info">
         <div class="portfolio-item-title">${item.name || item.title || 'ไม่ระบุชื่อ'}</div>
         <div class="portfolio-item-meta">
-          ${item.dateStart ? `<span>📅 ${formatDateRangeThai(item.dateStart, item.dateEnd)}</span>` : item.year ? `<span>📅 ${item.year}</span>` : ''}
+          ${item.dateStart ? `<span>📅 ${formatDateRangeThai(item.dateStart, item.dateEnd)}</span>` : item.date ? `<span>📅 ${formatDateThai(item.date)}</span>` : item.year ? `<span>📅 ${item.year}</span>` : ''}
           ${levelInfo ? `<span class="badge" style="background:${levelInfo.color}20;color:${levelInfo.color}">${levelInfo.name}</span>` : ''}
           ${item.organizer ? `<span>🏛️ ${item.organizer}</span>` : ''}
           ${item.result ? `<span>🏅 ${item.result}</span>` : ''}
           ${item.hours ? `<span>⏰ ${item.hours} ชั่วโมง</span>` : ''}
           ${item.certificateData ? `<span class="cert-badge" onclick="viewCertificate('${type}', ${idx})">📄 ดูใบประกาศ</span>` : ''}
         </div>
-        ${item.description ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px">${item.description}</div>` : ''}
+        ${item.description ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;white-space:pre-wrap">${item.description}</div>` : ''}
+        ${item.specialAward ? `<div class="camp-special-award">🏅 ${item.specialAward}</div>` : ''}
+        ${item.awardData ? `
+          <div class="cert-thumb-row" onclick="viewAwardPhoto('${type}', ${idx})">
+            <img src="${item.awardData}" alt="รางวัล" class="cert-thumb-img">
+          </div>
+        ` : ''}
         ${item.certificateData ? `
-          <div class="cert-thumb-row" onclick="viewCertificate('${type}', ${idx})">
+          <div class="cert-thumb-row" onclick="viewAwardCert('${type}', ${idx})">
             <img src="${item.certificateData}" alt="ใบประกาศ" class="cert-thumb-img">
+          </div>
+        ` : ''}
+        ${(item.activityPhotos || []).some(p => p) ? `
+          <div class="camp-photos-row">
+            ${(item.activityPhotos || []).map((p, pi) => p ? `<img src="${p}" class="camp-photo-thumb" onclick="viewCampPhoto('${type}', ${idx}, ${pi})">` : '').join('')}
+          </div>
+        ` : ''}
+        ${(item.atmospherePhotos || []).some(p => p) ? `
+          <div class="camp-photos-row">
+            ${(item.atmospherePhotos || []).map((p, pi) => p ? `<img src="${p}" class="camp-photo-thumb" onclick="viewAwardAtmosphere('${type}', ${idx}, ${pi})">` : '').join('')}
           </div>
         ` : ''}
       </div>
@@ -2331,6 +2372,7 @@ function renderPortfolioItem(type, item, idx, defaultIcon) {
 
 function editPortfolioItem(type, idx) {
   if (type === 'camps') showAddCampModal(idx);
+  else if (type === 'awards') showAddAwardModal(idx);
 }
 
 function viewCertificate(type, idx) {
@@ -2345,7 +2387,7 @@ function viewCertificate(type, idx) {
 function handleCertUpload(input) {
   const file = input.files[0];
   if (!file) return;
-  if (file.size > 2 * 1024 * 1024) { showToast('⚠️ ไฟล์ต้องมีขนาดไม่เกิน 2MB'); return; }
+  if (file.size > 5 * 1024 * 1024) { showToast('⚠️ ไฟล์ต้องมีขนาดไม่เกิน 5MB'); return; }
   const reader = new FileReader();
   reader.onload = e => {
     window._certData = e.target.result;
@@ -2355,6 +2397,106 @@ function handleCertUpload(input) {
     if (hint) hint.textContent = '✅ อัพโหลดแล้ว · คลิกเพื่อเปลี่ยน';
   };
   reader.readAsDataURL(file);
+}
+
+function handleAwardUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { showToast('⚠️ ไฟล์ต้องมีขนาดไม่เกิน 5MB'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    window._awardData = e.target.result;
+    const preview = document.getElementById('award-preview');
+    if (preview) { preview.innerHTML = `<img src="${e.target.result}" alt="รางวัล" class="cert-preview-img">`; preview.style.display = 'block'; }
+    const hint = document.getElementById('award-upload-hint');
+    if (hint) hint.textContent = '✅ อัพโหลดแล้ว · คลิกเพื่อเปลี่ยน';
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleAwardCertUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { showToast('⚠️ ไฟล์ต้องมีขนาดไม่เกิน 5MB'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    window._awardCertData = e.target.result;
+    const preview = document.getElementById('award-cert-preview');
+    if (preview) { preview.innerHTML = `<img src="${e.target.result}" alt="ใบประกาศ" class="cert-preview-img">`; preview.style.display = 'block'; }
+    const hint = document.getElementById('award-cert-hint');
+    if (hint) hint.textContent = '✅ อัพโหลดแล้ว · คลิกเพื่อเปลี่ยน';
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleAwardAtmosphereUpload(input, slotIdx) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { showToast('⚠️ ไฟล์ต้องมีขนาดไม่เกิน 5MB'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    if (!window._awardPhotos) window._awardPhotos = [null, null, null];
+    window._awardPhotos[slotIdx] = e.target.result;
+    const preview = document.getElementById(`award-atm-preview-${slotIdx}`);
+    if (preview) { preview.innerHTML = `<img src="${e.target.result}" class="photo-slot-img">`; preview.style.display = 'block'; }
+    const hint = document.getElementById(`award-atm-hint-${slotIdx}`);
+    if (hint) hint.textContent = '✅ เปลี่ยน';
+  };
+  reader.readAsDataURL(file);
+}
+
+function viewAwardCert(type, idx) {
+  const item = (state.studentData.portfolio[type] || [])[idx];
+  if (!item?.certificateData) return;
+  const win = window.open('', '_blank');
+  if (!win) { showToast('⚠️ กรุณาอนุญาต Pop-up window'); return; }
+  win.document.write(`<!DOCTYPE html><html><head><title>ใบประกาศ — ${item.name || ''}</title><style>body{margin:0;background:#111;display:flex;justify-content:center;padding:16px}img{max-width:100%;height:auto;border-radius:4px}</style></head><body><img src="${item.certificateData}" alt="ใบประกาศ"></body></html>`);
+  win.document.close();
+}
+
+function viewAwardAtmosphere(type, idx, photoIdx) {
+  const item = (state.studentData.portfolio[type] || [])[idx];
+  const photo = item?.atmospherePhotos?.[photoIdx];
+  if (!photo) return;
+  const win = window.open('', '_blank');
+  if (!win) { showToast('⚠️ กรุณาอนุญาต Pop-up window'); return; }
+  win.document.write(`<!DOCTYPE html><html><head><title>บรรยากาศรับรางวัล — ${item.name || ''}</title><style>body{margin:0;background:#111;display:flex;justify-content:center;padding:16px}img{max-width:100%;height:auto;border-radius:4px}</style></head><body><img src="${photo}"></body></html>`);
+  win.document.close();
+}
+
+function handleCampPhotoUpload(input, slotIdx) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { showToast('⚠️ ไฟล์ต้องมีขนาดไม่เกิน 5MB'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    if (!window._campPhotos) window._campPhotos = [null, null, null];
+    window._campPhotos[slotIdx] = e.target.result;
+    const preview = document.getElementById(`camp-photo-preview-${slotIdx}`);
+    if (preview) { preview.innerHTML = `<img src="${e.target.result}" class="photo-slot-img">`; preview.style.display = 'block'; }
+    const hint = document.getElementById(`camp-photo-hint-${slotIdx}`);
+    if (hint) hint.textContent = '✅ เปลี่ยน';
+  };
+  reader.readAsDataURL(file);
+}
+
+function viewAwardPhoto(type, idx) {
+  const item = (state.studentData.portfolio[type] || [])[idx];
+  if (!item?.awardData) return;
+  const win = window.open('', '_blank');
+  if (!win) { showToast('⚠️ กรุณาอนุญาต Pop-up'); return; }
+  win.document.write(`<!DOCTYPE html><html><head><title>รางวัล — ${item.name || ''}</title><style>body{margin:0;background:#111;display:flex;justify-content:center;padding:16px}img{max-width:100%;height:auto;border-radius:4px}</style></head><body><img src="${item.awardData}"></body></html>`);
+  win.document.close();
+}
+
+function viewCampPhoto(type, idx, photoIdx) {
+  const item = (state.studentData.portfolio[type] || [])[idx];
+  const photo = item?.activityPhotos?.[photoIdx];
+  if (!photo) return;
+  const win = window.open('', '_blank');
+  if (!win) { showToast('⚠️ กรุณาอนุญาต Pop-up'); return; }
+  win.document.write(`<!DOCTYPE html><html><head><title>ภาพกิจกรรม</title><style>body{margin:0;background:#111;display:flex;justify-content:center;padding:16px}img{max-width:100%;height:auto;border-radius:4px}</style></head><body><img src="${photo}"></body></html>`);
+  win.document.close();
 }
 
 function removePortfolioItem(type, idx) {
@@ -2368,11 +2510,26 @@ function removePortfolioItem(type, idx) {
 // ---- Add Item Modals ----
 function showAddCampModal(editIdx = null) {
   const existing = editIdx !== null ? (state.studentData.portfolio.camps[editIdx] || {}) : {};
-  window._certData = existing.certificateData || null;
+  window._certData   = existing.certificateData || null;
+  window._awardData  = existing.awardData || null;
+  window._campPhotos = [...(existing.activityPhotos || [null, null, null])];
 
-  const iconOptions = TCAS_DATA.campTypes.map(c =>
-    `<option value="${c.icon}" ${existing.icon === c.icon ? 'selected' : ''}>${c.icon} ${c.name}</option>`
-  ).join('');
+  const campTypeOptions = TCAS_DATA.campTypes.map(c => ({value: c.icon, label: `${c.icon} ${c.name}`}));
+
+  const photoSlots = [0, 1, 2].map(i => {
+    const hasPhoto = !!window._campPhotos[i];
+    return `
+      <div class="photo-upload-slot">
+        <div id="camp-photo-preview-${i}" class="photo-slot-preview" style="${hasPhoto ? '' : 'display:none'}">
+          ${hasPhoto ? `<img src="${window._campPhotos[i]}" class="photo-slot-img">` : ''}
+        </div>
+        <div class="photo-upload-zone-sm" onclick="document.getElementById('camp-photo-input-${i}').click()">
+          <span>📸</span>
+          <span id="camp-photo-hint-${i}">${hasPhoto ? '✅ เปลี่ยน' : 'อัพโหลด'}</span>
+        </div>
+        <input type="file" id="camp-photo-input-${i}" accept="image/*" style="display:none" onchange="handleCampPhotoUpload(this,${i})">
+      </div>`;
+  }).join('');
 
   showGenericAddModal(editIdx !== null ? '✏️ แก้ไขค่าย' : '⛺ เพิ่มค่าย', `
     <div class="form-group">
@@ -2381,7 +2538,7 @@ function showAddCampModal(editIdx = null) {
     </div>
     <div class="form-group">
       <label class="form-label">ประเภทค่าย</label>
-      <select class="form-control" id="add-icon">${iconOptions}</select>
+      ${buildDropdown('add-icon', campTypeOptions, existing.icon || campTypeOptions[0]?.value || '')}
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -2402,13 +2559,29 @@ function showAddCampModal(editIdx = null) {
       <textarea class="form-control" id="add-description" placeholder="กิจกรรมที่ทำ ทักษะที่ได้รับ...">${existing.description || ''}</textarea>
     </div>
     <div class="form-group">
+      <label class="form-label">🏅 รางวัลพิเศษที่ได้รับ</label>
+      <input type="text" class="form-control" id="add-special-award" value="${existing.specialAward || ''}" placeholder="เช่น รางวัล Best Project, เหรียญทอง">
+      <div id="award-preview" class="cert-preview" style="${existing.awardData ? '' : 'display:none'}">
+        ${existing.awardData ? `<img src="${existing.awardData}" alt="รางวัล" class="cert-preview-img">` : ''}
+      </div>
+      <div class="cert-upload-zone" style="margin-top:8px" onclick="document.getElementById('award-file-input').click()">
+        <span>📎</span>
+        <span id="award-upload-hint">${existing.awardData ? '✅ มีไฟล์อยู่แล้ว · คลิกเพื่อเปลี่ยน' : 'อัพโหลดภาพรางวัล (ถ้ามี, ไม่เกิน 5MB)'}</span>
+      </div>
+      <input type="file" id="award-file-input" accept="image/*" style="display:none" onchange="handleAwardUpload(this)">
+    </div>
+    <div class="form-group">
+      <label class="form-label">📸 ภาพกิจกรรม (สูงสุด 3 ภาพ)</label>
+      <div class="photo-upload-grid">${photoSlots}</div>
+    </div>
+    <div class="form-group">
       <label class="form-label">📄 ใบประกาศนียบัตร / เอกสาร</label>
       <div id="cert-preview" class="cert-preview" style="${existing.certificateData ? '' : 'display:none'}">
         ${existing.certificateData ? `<img src="${existing.certificateData}" alt="ใบประกาศ" class="cert-preview-img">` : ''}
       </div>
       <div class="cert-upload-zone" onclick="document.getElementById('cert-file-input').click()">
         <span>📎</span>
-        <span id="cert-upload-hint">${existing.certificateData ? '✅ มีไฟล์อยู่แล้ว · คลิกเพื่อเปลี่ยน' : 'คลิกเพื่ออัพโหลดภาพใบประกาศ (ไม่เกิน 2MB)'}</span>
+        <span id="cert-upload-hint">${existing.certificateData ? '✅ มีไฟล์อยู่แล้ว · คลิกเพื่อเปลี่ยน' : 'คลิกเพื่ออัพโหลดภาพใบประกาศ (ไม่เกิน 5MB)'}</span>
       </div>
       <input type="file" id="cert-file-input" accept="image/*" style="display:none" onchange="handleCertUpload(this)">
     </div>
@@ -2419,51 +2592,88 @@ function showAddCampModal(editIdx = null) {
     dateEnd: getVal('add-date-end'),
     organizer: getVal('add-organizer'),
     description: getVal('add-description'),
+    specialAward: getVal('add-special-award'),
+    awardData: window._awardData,
+    activityPhotos: [...(window._campPhotos || [null, null, null])],
     certificateData: window._certData
   }, editIdx));
 }
 
-function showAddAwardModal() {
-  showGenericAddModal('🏆 เพิ่มรางวัล', `
+function showAddAwardModal(editIdx = null) {
+  const existing = editIdx !== null ? (state.studentData.portfolio.awards[editIdx] || {}) : {};
+  window._awardCertData = existing.certificateData || null;
+  window._awardPhotos   = [...(existing.atmospherePhotos || [null, null, null])];
+
+  const atmSlots = [0, 1, 2].map(i => {
+    const hasPhoto = !!window._awardPhotos[i];
+    return `
+      <div class="photo-upload-slot">
+        <div id="award-atm-preview-${i}" class="photo-slot-preview" style="${hasPhoto ? '' : 'display:none'}">
+          ${hasPhoto ? `<img src="${window._awardPhotos[i]}" class="photo-slot-img">` : ''}
+        </div>
+        <div class="photo-upload-zone-sm" onclick="document.getElementById('award-atm-input-${i}').click()">
+          <span>📸</span>
+          <span id="award-atm-hint-${i}">${hasPhoto ? '✅ เปลี่ยน' : 'อัพโหลด'}</span>
+        </div>
+        <input type="file" id="award-atm-input-${i}" accept="image/*" style="display:none" onchange="handleAwardAtmosphereUpload(this,${i})">
+      </div>`;
+  }).join('');
+
+  showGenericAddModal(editIdx !== null ? '✏️ แก้ไขรางวัล' : '🏆 เพิ่มรางวัล', `
     <div class="form-group">
       <label class="form-label">ชื่อรางวัล <span class="required">*</span></label>
-      <input type="text" class="form-control" id="add-name" placeholder="เช่น รางวัลชนะเลิศการประกวดโครงงานวิทยาศาสตร์">
+      <input type="text" class="form-control" id="add-name" value="${existing.name || ''}" placeholder="เช่น รางวัลชนะเลิศการประกวดโครงงานวิทยาศาสตร์">
     </div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">ระดับรางวัล <span class="required">*</span></label>
-        <select class="form-control" id="add-level">
-          ${TCAS_DATA.awardLevels.map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
-        </select>
+        ${buildDropdown('add-level', TCAS_DATA.awardLevels.map(l => ({value:l.id, label:l.name})), existing.level || TCAS_DATA.awardLevels[0]?.id || '')}
       </div>
       <div class="form-group">
         <label class="form-label">ลำดับที่ได้รับ</label>
-        <input type="text" class="form-control" id="add-result" placeholder="เช่น รางวัลที่ 1, เหรียญทอง">
+        <input type="text" class="form-control" id="add-result" value="${existing.result || ''}" placeholder="เช่น รางวัลที่ 1, เหรียญทอง">
       </div>
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">ปีที่ได้รับ</label>
-        <input type="text" class="form-control" id="add-year" placeholder="เช่น 2568">
+        <label class="form-label">วันเดือนปีที่ได้รับ</label>
+        <input type="date" class="form-control" id="add-date" value="${existing.date || ''}">
       </div>
       <div class="form-group">
         <label class="form-label">หน่วยงานผู้มอบ</label>
-        <input type="text" class="form-control" id="add-organizer" placeholder="เช่น สสวท.">
+        <input type="text" class="form-control" id="add-organizer" value="${existing.organizer || ''}" placeholder="เช่น สสวท.">
       </div>
     </div>
     <div class="form-group">
       <label class="form-label">รายละเอียด</label>
-      <textarea class="form-control" id="add-description" placeholder="รายละเอียดรางวัล..."></textarea>
+      <textarea class="form-control" id="add-description" placeholder="รายละเอียดรางวัล...">${existing.description || ''}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">📄 ใบประกาศนียบัตร</label>
+      <div id="award-cert-preview" class="cert-preview" style="${existing.certificateData ? '' : 'display:none'}">
+        ${existing.certificateData ? `<img src="${existing.certificateData}" alt="ใบประกาศ" class="cert-preview-img">` : ''}
+      </div>
+      <div class="cert-upload-zone" onclick="document.getElementById('award-cert-input').click()">
+        <span>📎</span>
+        <span id="award-cert-hint">${existing.certificateData ? '✅ มีไฟล์อยู่แล้ว · คลิกเพื่อเปลี่ยน' : 'คลิกเพื่ออัพโหลดภาพใบประกาศ (ไม่เกิน 5MB)'}</span>
+      </div>
+      <input type="file" id="award-cert-input" accept="image/*" style="display:none" onchange="handleAwardCertUpload(this)">
+    </div>
+    <div class="form-group">
+      <label class="form-label">📸 บรรยากาศการรับรางวัล (สูงสุด 3 ภาพ)</label>
+      <div class="photo-upload-grid">${atmSlots}</div>
     </div>
   `, () => savePortfolioItem('awards', {
     name: getVal('add-name'),
     icon: '🏆',
     level: getVal('add-level'),
     result: getVal('add-result'),
-    year: getVal('add-year'),
+    date: getVal('add-date'),
     organizer: getVal('add-organizer'),
-    description: getVal('add-description')
-  }));
+    description: getVal('add-description'),
+    certificateData: window._awardCertData,
+    atmospherePhotos: [...(window._awardPhotos || [null, null, null])]
+  }, editIdx));
 }
 
 function showAddCompModal() {
@@ -2475,9 +2685,7 @@ function showAddCompModal() {
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">ระดับ</label>
-        <select class="form-control" id="add-level">
-          ${TCAS_DATA.awardLevels.map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
-        </select>
+        ${buildDropdown('add-level', TCAS_DATA.awardLevels.map(l => ({value:l.id, label:l.name})), TCAS_DATA.awardLevels[0]?.id || '')}
       </div>
       <div class="form-group">
         <label class="form-label">ผลการแข่งขัน</label>
@@ -2575,7 +2783,11 @@ function savePortfolioItem(type, item, editIdx = null) {
   } else {
     state.studentData.portfolio[type].push(item);
   }
-  window._certData = null;
+  window._certData      = null;
+  window._awardData     = null;
+  window._campPhotos    = [null, null, null];
+  window._awardCertData = null;
+  window._awardPhotos   = [null, null, null];
   saveData();
   closeModal();
   renderPortfolio();
@@ -2588,7 +2800,9 @@ function savePortfolioItem(type, item, editIdx = null) {
 
 function getVal(id) {
   const el = document.getElementById(id);
-  return el ? el.value.trim() : '';
+  if (!el) return '';
+  if (el.classList.contains('uni-dropdown')) return el.dataset.value ?? '';
+  return el.value != null ? el.value.trim() : '';
 }
 
 // ---- Generic Modal ----
@@ -3306,11 +3520,11 @@ function renderPlannerPortfolio(prefs) {
   const uni = getUniversityById(program.universityId);
   const selectedRank = prefs.indexOf(selectedId);
 
-  const options = eligible.map(pid => {
+  const portfolioOptions = eligible.map(pid => {
     const p = TCAS_DATA.programs.find(x => x.id === pid);
     const rank = prefs.indexOf(pid);
-    return `<option value="${pid}" ${pid === selectedId ? 'selected' : ''}>อันดับ ${rank + 1} — ${p.program} (${getUniversityById(p.universityId).shortName})</option>`;
-  }).join('');
+    return {value: pid, label: `อันดับ ${rank + 1} — ${p.program} (${getUniversityById(p.universityId).shortName})`};
+  });
 
   const gpa = parseFloat(state.studentData.gpa.cumulative) || 0;
   const minGPA = parseFloat(program.minGPA) || 0;
@@ -3334,7 +3548,7 @@ function renderPlannerPortfolio(prefs) {
     <div class="card-body">
       <div class="form-group">
         <label class="form-label">ดูข้อมูลของคณะ</label>
-        <select class="form-control" onchange="onPlannerPortfolioTargetChange(this.value)">${options}</select>
+        ${buildDropdown('planner-portfolio-target', portfolioOptions, selectedId, val => onPlannerPortfolioTargetChange(val))}
       </div>
       <div style="font-size:0.78rem;color:var(--text-muted);margin:10px 0">เทียบกับอันดับ ${selectedRank + 1}: <strong>${program.program}</strong> (${uni.shortName})</div>
 
@@ -3370,11 +3584,11 @@ function renderPlannerScoreGap(prefs) {
   const uni = getUniversityById(program.universityId);
   const color = match.score >= 70 ? 'var(--success)' : match.score >= 45 ? 'var(--warning)' : 'var(--danger)';
 
-  const options = prefs.map((pid, i) => {
+  const scoreGapOptions = prefs.map((pid, i) => {
     const p = TCAS_DATA.programs.find(x => x.id === pid);
-    if (!p) return '';
-    return `<option value="${pid}" ${pid === selectedId ? 'selected' : ''}>อันดับ ${i + 1} — ${p.program} (${getUniversityById(p.universityId).shortName})</option>`;
-  }).join('');
+    if (!p) return null;
+    return {value: pid, label: `อันดับ ${i + 1} — ${p.program} (${getUniversityById(p.universityId).shortName})`};
+  }).filter(Boolean);
 
   return `
   <div class="card mt-3">
@@ -3384,7 +3598,7 @@ function renderPlannerScoreGap(prefs) {
     <div class="card-body">
       <div class="form-group">
         <label class="form-label">ดูข้อมูลของคณะ</label>
-        <select class="form-control" onchange="onPlannerTargetChange(this.value)">${options}</select>
+        ${buildDropdown('planner-score-target', scoreGapOptions, selectedId, val => onPlannerTargetChange(val))}
       </div>
       <div style="font-size:0.78rem;color:var(--text-muted);margin:10px 0">เทียบกับอันดับ ${selectedIdx + 1}: <strong>${program.program}</strong> (${uni.shortName})</div>
       <div class="warning-box mb-2" style="font-size:0.78rem">
@@ -3578,16 +3792,14 @@ function renderPlannerRounds(planner, prefs) {
             <span>${progName(pid)}</span>
             <button type="button" class="planner-round-chip-remove" onclick="onPlannerRoundRemove('${r.key}', '${pid}')">✕</button>
           </div>`).join('');
-        const options = available.map(pid => `<option value="${pid}">${progName(pid)}</option>`).join('');
+        const roundDropOpts = [{value:'', label:'+ เพิ่มคณะที่จะยื่นในรอบนี้'}, ...available.map(pid => ({value:pid, label:progName(pid)}))];
         return `
         <div class="form-group">
           <label class="form-label" style="color:${r.color}">${r.label}</label>
           ${chips ? `<div class="planner-round-chips">${chips}</div>` : ''}
-          ${available.length ? `
-            <select class="form-control" onchange="onPlannerRoundAdd('${r.key}', this.value); this.value='';">
-              <option value="">+ เพิ่มคณะที่จะยื่นในรอบนี้</option>
-              ${options}
-            </select>` : `<div style="font-size:0.78rem;color:var(--text-muted)">เลือกครบทุกคณะเป้าหมายแล้ว</div>`}
+          ${available.length
+            ? buildDropdown(`planner-round-${r.key}`, roundDropOpts, '', val => { if(val) onPlannerRoundAdd(r.key, val); })
+            : `<div style="font-size:0.78rem;color:var(--text-muted)">เลือกครบทุกคณะเป้าหมายแล้ว</div>`}
         </div>`;
       }).join('')}
     </div>
@@ -3798,9 +4010,7 @@ function renderStudyLogCell(date, blockKey, entries) {
         <input type="text" class="form-control" id="studylog-edit-topic" value="${(e.topic || '').replace(/"/g, '&quot;')}" placeholder="บท/เรื่อง (ไม่บังคับ)">
         <div style="display:flex;gap:4px">
           <input type="date" class="form-control" id="studylog-edit-date" value="${e.date}">
-          <select class="form-control" id="studylog-edit-block">
-            ${STUDY_TIME_BLOCKS.map(b => `<option value="${b.key}" ${b.key === (e.block || 'morning') ? 'selected' : ''}>${b.label}</option>`).join('')}
-          </select>
+          ${buildDropdown('studylog-edit-block', STUDY_TIME_BLOCKS.map(b => ({value:b.key, label:b.label})), e.block || 'morning')}
         </div>
         <div style="display:flex;gap:4px;margin-top:2px">
           <button type="button" class="btn btn-primary btn-sm" onclick="saveEditStudyLogEntry('${e.id}')">บันทึก</button>
@@ -5130,7 +5340,7 @@ function editAvatar() {
   input.onchange = e => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 3 * 1024 * 1024) { showToast('รูปภาพต้องมีขนาดไม่เกิน 3MB'); return; }
+    if (file.size > 5 * 1024 * 1024) { showToast('รูปภาพต้องมีขนาดไม่เกิน 5MB'); return; }
     const reader = new FileReader();
     reader.onload = ev => {
       state.studentData.avatarData = ev.target.result;

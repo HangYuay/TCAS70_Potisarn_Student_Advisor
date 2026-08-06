@@ -145,9 +145,11 @@ function navigate(page) {
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.page === page);
   });
-  // Sync mobile bottom nav items
+  // Sync mobile bottom nav items (studylog/mocktest/mistakelog are sub-pages of planner)
+  const PLANNER_SUB_PAGES = new Set(['studylog', 'mocktest', 'mistakelog']);
   document.querySelectorAll('.mobile-nav-item').forEach(el => {
-    el.classList.toggle('active', el.dataset.page === page);
+    el.classList.toggle('active', el.dataset.page === page ||
+      (PLANNER_SUB_PAGES.has(page) && el.dataset.page === 'planner'));
   });
   document.querySelectorAll('.page-section').forEach(el => {
     el.classList.toggle('hidden', el.id !== `page-${page}`);

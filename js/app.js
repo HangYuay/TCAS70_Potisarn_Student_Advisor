@@ -3748,15 +3748,110 @@ function renderPlannerScoreGap(prefs) {
   const program = TCAS_DATA.programs.find(p => p.id === selectedId);
   if (!program) return '';
 
-  const match = calculateMatchScore(program, state.studentData);
   const uni = getUniversityById(program.universityId);
-  const color = match.score >= 70 ? 'var(--success)' : match.score >= 45 ? 'var(--warning)' : 'var(--danger)';
+  const studentScores = state.studentData.scores || {};
+  const ws = calculateWeightedScore(program, studentScores);
+
+  // Historical cutoff (most recent year)
+  const hist = TCAS_HISTORICAL_STATS[program.id];
+  let cutoff = null;
+  if (hist) {
+    const lastYear = Object.keys(hist).sort().pop();
+    cutoff = hist[lastYear]?.min ?? null;
+  }
+  const targetScore = cutoff ?? 70; // fallback target if no history
+
+  // Requirement for missing subjects
+  let req = null;
+  if (!ws.noData && !ws.complete && ws.missingSubjs?.length > 0) {
+    req = calcPartialRequirement(ws, targetScore);
+  }
+  // When no scores at all, needed pct = targetScore (weights sum to 100)
+  const allMissingReqPct = ws.noData ? targetScore : null;
 
   const scoreGapOptions = prefs.map((pid, i) => {
     const p = TCAS_DATA.programs.find(x => x.id === pid);
     if (!p) return null;
     return {value: pid, label: `อันดับ ${i + 1} — ${p.program} (${getUniversityById(p.universityId).shortName})`};
   }).filter(Boolean);
+
+  // Score summary header
+  let scoreSummary = '';
+  if (ws.complete) {
+    const sc = ws.score;
+    const tier = cutoff != null ? getAssessmentTier(sc, cutoff) : null;
+    const diff = cutoff != null ? sc - cutoff : null;
+    const headColor = tier?.color || 'var(--primary)';
+    scoreSummary = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <div style="font-size:1.8rem;font-weight:800;color:${headColor}">${sc.toFixed(1)}%</div>
+        <div>
+          <div style="font-size:0.82rem;color:var(--text-muted)">คะแนนรวมถ่วงน้ำหนัก (รอบ Admission)</div>
+          ${tier ? `<div style="font-size:0.75rem;font-weight:700;color:${tier.color}">${tier.label}</div>` : ''}
+          ${diff != null ? `<div style="font-size:0.75rem;color:${diff >= 0 ? '#059669' : '#DC2626'}">${diff >= 0 ? '+' : ''}${diff.toFixed(1)}% จากเกณฑ์ TCAS69</div>` : ''}
+        </div>
+      </div>`;
+  } else if (!ws.noData) {
+    const sc = ws.partialKnown;
+    scoreSummary = `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <div style="font-size:1.8rem;font-weight:800;color:#D97706">${sc.toFixed(1)}%*</div>
+        <div>
+          <div style="font-size:0.82rem;color:var(--text-muted)">คะแนนบางส่วน (ยังกรอกไม่ครบ)</div>
+          ${cutoff != null ? `<div style="font-size:0.75rem;color:var(--text-muted)">เกณฑ์ผ่าน TCAS69: ${cutoff.toFixed(1)}%</div>` : ''}
+          ${req?.alreadySufficient ? `<div style="font-size:0.75rem;font-weight:700;color:#059669">✓ คะแนนที่มีแล้วพอถึงเกณฑ์</div>` : ''}
+        </div>
+      </div>`;
+  }
+
+  // Subject breakdown grid
+  const criteria = TCAS_CATEGORY_CRITERIA[program.category] || {};
+  const entries = Object.entries(criteria);
+  let breakdownHtml = '';
+  if (entries.length > 0) {
+    const rows = entries.map(([subj, weight]) => {
+      const max = SCORE_MAX[subj] || 100;
+      const raw = parseFloat(studentScores[subj]);
+      const hasScore = !isNaN(raw) && raw > 0;
+      const contrib = hasScore ? ((raw / max) * weight).toFixed(1) : null;
+
+      let col3;
+      if (hasScore) {
+        col3 = `<div class="score-bd-contrib" style="color:#6366F1">+${contrib}%</div>`;
+      } else if (req && !req.alreadySufficient) {
+        const neededRaw = req.possible ? Math.ceil((req.requiredPct / 100) * max) : null;
+        col3 = `<div class="score-bd-contrib" style="color:${req.possible ? 'var(--primary)' : '#DC2626'};font-size:0.68rem;white-space:nowrap">
+          ${req.possible ? `ต้องได้ ≥ ${neededRaw}` : 'คะแนนไม่พอแม้เต็ม'}
+        </div>`;
+      } else if (allMissingReqPct != null) {
+        const neededRaw = Math.ceil((allMissingReqPct / 100) * max);
+        col3 = `<div class="score-bd-contrib" style="color:var(--primary);font-size:0.68rem;white-space:nowrap">ต้องได้ ≥ ${neededRaw}</div>`;
+      } else {
+        col3 = `<div class="score-bd-contrib" style="color:var(--text-muted)">—</div>`;
+      }
+
+      return `<div class="score-bd-item">
+        <div class="score-bd-name">${SCORE_LABEL[subj] || subj} <span style="color:var(--text-muted)">${weight}%</span></div>
+        <div class="score-bd-val ${hasScore ? '' : 'no-score'}">${hasScore ? `${raw}/${max}` : '—'}</div>
+        ${col3}
+      </div>`;
+    }).join('');
+
+    const colHeader = ws.noData || (req && !req.alreadySufficient)
+      ? `<div style="color:var(--primary);font-weight:700">คะแนนขั้นต่ำ</div>`
+      : ws.complete
+        ? `<div style="color:#6366F1;font-weight:700">สมทบ</div>`
+        : `<div style="color:var(--primary);font-weight:700">คะแนนขั้นต่ำ</div>`;
+
+    breakdownHtml = `
+      <div style="font-size:0.72rem;font-weight:600;color:var(--text-muted);margin:8px 0 2px">สัดส่วนวิชาที่ใช้ในรอบ Admission <span style="font-weight:400">(อ้างอิงเกณฑ์ทั่วไป TCAS69)</span></div>
+      <div class="score-breakdown-grid" style="font-size:0.72rem">
+        <div style="color:var(--text-muted);font-weight:600">วิชา</div>
+        <div style="color:var(--text-muted);font-weight:600;text-align:right">คะแนนฉัน</div>
+        ${colHeader}
+        ${rows}
+      </div>`;
+  }
 
   return `
   <div class="card mt-3">
@@ -3768,18 +3863,14 @@ function renderPlannerScoreGap(prefs) {
         <label class="form-label">ดูข้อมูลของคณะ</label>
         ${buildDropdown('planner-score-target', scoreGapOptions, selectedId, val => onPlannerTargetChange(val))}
       </div>
-      <div style="font-size:0.78rem;color:var(--text-muted);margin:10px 0">เทียบกับอันดับ ${selectedIdx + 1}: <strong>${program.program}</strong> (${uni.shortName})</div>
+      <div style="font-size:0.78rem;color:var(--text-muted);margin:10px 0">อันดับ ${selectedIdx + 1}: <strong>${program.program}</strong> · ${uni.shortName}</div>
       <div class="warning-box mb-2" style="font-size:0.78rem">
         <span>⚠️</span>
-        <div>เกณฑ์รอบ Admission ปีการศึกษา 2570 ยังไม่มีการประกาศอย่างเป็นทางการจากมหาวิทยาลัย ตัวเลขนี้เป็นค่าอ้างอิงเบื้องต้น จะปรับปรุงให้ตรงตามประกาศจริงเมื่อมหาวิทยาลัยเผยแพร่ (คาดว่าใกล้ พ.ค. 2570)</div>
+        <div>เกณฑ์รอบ Admission 2570 ยังไม่มีประกาศอย่างเป็นทางการ อ้างอิงจากเกณฑ์ทั่วไป TCAS69 จะอัปเดตเมื่อมหาวิทยาลัยเผยแพร่ (คาดใกล้ พ.ค. 2570)</div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-        <div style="font-size:1.8rem;font-weight:800;color:${color}">${match.score}%</div>
-        <div style="font-size:0.82rem;color:var(--text-muted)">ความพร้อมโดยประมาณ (รอบ Admission)</div>
-      </div>
-      ${match.details.length ? `<div class="criteria-section-title mb-2">มีคะแนนแล้ว</div><ul class="plain-list">${match.details.map(d => `<li>✅ ${d}</li>`).join('')}</ul>` : ''}
-      ${match.issues.length ? `<div class="criteria-section-title mb-2 mt-2">ยังขาด</div><ul class="plain-list">${match.issues.map(d => `<li>⚠️ ${d}</li>`).join('')}</ul>` : ''}
-      <button class="btn btn-outline btn-sm mt-2" onclick="navigate('scores')">ไปกรอกคะแนน →</button>
+      ${scoreSummary}
+      ${breakdownHtml}
+      <button class="btn btn-outline btn-sm mt-3" onclick="navigate('scores')">ไปกรอกคะแนน →</button>
     </div>
   </div>`;
 }

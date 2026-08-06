@@ -146,7 +146,7 @@ function navigate(page) {
     el.classList.toggle('active', el.dataset.page === page);
   });
   // Sync mobile bottom nav items (studylog/mocktest/mistakelog are sub-pages of planner)
-  const PLANNER_SUB_PAGES = new Set(['studylog', 'mocktest', 'mistakelog']);
+  const PLANNER_SUB_PAGES = new Set(['planner-hub', 'planner', 'studylog', 'mocktest', 'mistakelog']);
   document.querySelectorAll('.mobile-nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.page === page ||
       (PLANNER_SUB_PAGES.has(page) && el.dataset.page === 'planner'));
@@ -193,6 +193,7 @@ function renderPage(page) {
     case 'guide': renderGuide(); break;
     case 'recommend': renderRecommendations(); break;
     case 'calendar': renderCalendar(); break;
+    case 'planner-hub': break;
     case 'planner': renderPlanner(); break;
     case 'studylog': renderStudyLog(); break;
     case 'mocktest': renderMockTestPage(); break;
@@ -977,13 +978,14 @@ const _dropdownOnChange = {};
 function buildDropdown(id, options, currentVal, onChangeFn) {
   _dropdownOnChange[id] = onChangeFn || null;
   const current = options.find(o => String(o.value) === String(currentVal));
-  const label = current ? current.label : (options[0]?.label || '');
-  const items = options.map(o =>
-    `<div class="uni-dropdown-item${String(o.value) === String(currentVal) ? ' selected' : ''}"
+  const label = current ? (current.btnLabel ?? current.label) : (options[0]?.btnLabel ?? options[0]?.label ?? '');
+  const items = options.map(o => {
+    const safeBtn = o.btnLabel != null ? ` data-btn-label="${String(o.btnLabel).replace(/"/g,'&quot;')}"` : '';
+    return `<div class="uni-dropdown-item${String(o.value) === String(currentVal) ? ' selected' : ''}"${safeBtn}
           onclick="pickDropdown(event,'${id}','${String(o.value).replace(/\\/g,'\\\\').replace(/'/g,'\\x27')}')">
       ${o.label}
-    </div>`
-  ).join('');
+    </div>`;
+  }).join('');
   const safeVal = String(currentVal ?? options[0]?.value ?? '');
   return `<div class="uni-dropdown" id="${id}" data-value="${safeVal.replace(/"/g,'&quot;')}">
     <button type="button" class="uni-dropdown-btn" id="${id}-btn" onclick="toggleUniPicker('${id}')">${label}</button>
@@ -993,7 +995,8 @@ function buildDropdown(id, options, currentVal, onChangeFn) {
 
 function pickDropdown(e, id, val) {
   e.stopPropagation();
-  const label = e.currentTarget.textContent.trim();
+  const btnLabel = e.currentTarget.dataset.btnLabel;
+  const label = (btnLabel != null && btnLabel !== '') ? btnLabel : e.currentTarget.textContent.trim();
   const btn = document.getElementById(id + '-btn');
   if (btn) btn.textContent = label;
   document.querySelectorAll(`#${id}-list .uni-dropdown-item`).forEach(el => el.classList.remove('selected'));
@@ -3623,6 +3626,21 @@ function renderPlanner() {
   `;
 }
 
+function buildProgramOption(pid, rank) {
+  const p = TCAS_DATA.programs.find(x => x.id === pid);
+  if (!p) return null;
+  const uni = getUniversityById(p.universityId);
+  const rankStr = rank >= 0 ? `อันดับ ${rank + 1} — ` : '';
+  const btnLabel = `${rankStr}${p.program} (${uni.shortName})`;
+  const hasFull = p.programFull && p.programFull !== p.program;
+  const label = `<div style="line-height:1.6">
+    <div style="font-weight:600;font-size:0.85rem">${rankStr}${p.program}</div>
+    <div style="font-size:0.75rem;opacity:0.72">${p.faculty} · ${uni.shortName}</div>
+    ${hasFull ? `<div style="font-size:0.71rem;opacity:0.6">${p.programFull}</div>` : ''}
+  </div>`;
+  return {value: pid, label, btnLabel};
+}
+
 function renderPlannerTargets(prefs) {
   if (!prefs.length) {
     return `
@@ -3642,12 +3660,17 @@ function renderPlannerTargets(prefs) {
     const prog = TCAS_DATA.programs.find(p => p.id === pid);
     if (!prog) return '';
     const uni = getUniversityById(prog.universityId);
+    const hasFull = prog.programFull && prog.programFull !== prog.program;
     return `
       <div class="pref-item">
         <div class="pref-rank" style="background:${i < 3 ? ['#F0A500','#94A3B8','#CD7F32'][i] : 'var(--surface-2)'};color:${i < 3 ? 'white' : 'var(--text-muted)'}">${i + 1}</div>
         <div class="pref-item-body">
-          <div class="pref-item-header"><strong>${prog.program}</strong></div>
-          <div style="font-size:0.8rem;color:var(--text-muted)">${uni.shortName} · ${prog.faculty}</div>
+          <div class="pref-item-header">
+            <span class="pref-uni-tag" style="background:${uni.color}20;color:${uni.color}">${uni.shortName}</span>
+            <span class="pref-prog-name">${prog.program}</span>
+          </div>
+          <div class="pref-item-sub">${prog.faculty}</div>
+          ${hasFull ? `<div class="pref-item-full">${prog.programFull}</div>` : ''}
         </div>
       </div>`;
   }).join('');
@@ -3688,11 +3711,7 @@ function renderPlannerPortfolio(prefs) {
   const uni = getUniversityById(program.universityId);
   const selectedRank = prefs.indexOf(selectedId);
 
-  const portfolioOptions = eligible.map(pid => {
-    const p = TCAS_DATA.programs.find(x => x.id === pid);
-    const rank = prefs.indexOf(pid);
-    return {value: pid, label: `อันดับ ${rank + 1} — ${p.program} (${getUniversityById(p.universityId).shortName})`};
-  });
+  const portfolioOptions = eligible.map(pid => buildProgramOption(pid, prefs.indexOf(pid))).filter(Boolean);
 
   const gpa = parseFloat(state.studentData.gpa.cumulative) || 0;
   const minGPA = parseFloat(program.minGPA) || 0;
@@ -3769,11 +3788,7 @@ function renderPlannerScoreGap(prefs) {
   // When no scores at all, needed pct = targetScore (weights sum to 100)
   const allMissingReqPct = ws.noData ? targetScore : null;
 
-  const scoreGapOptions = prefs.map((pid, i) => {
-    const p = TCAS_DATA.programs.find(x => x.id === pid);
-    if (!p) return null;
-    return {value: pid, label: `อันดับ ${i + 1} — ${p.program} (${getUniversityById(p.universityId).shortName})`};
-  }).filter(Boolean);
+  const scoreGapOptions = prefs.map((pid, i) => buildProgramOption(pid, i)).filter(Boolean);
 
   // Score summary header
   let scoreSummary = '';
@@ -4051,7 +4066,7 @@ function renderPlannerRounds(planner, prefs) {
             <span>${progName(pid)}</span>
             <button type="button" class="planner-round-chip-remove" onclick="onPlannerRoundRemove('${r.key}', '${pid}')">✕</button>
           </div>`).join('');
-        const roundDropOpts = [{value:'', label:'+ เพิ่มคณะที่จะยื่นในรอบนี้'}, ...available.map(pid => ({value:pid, label:progName(pid)}))];
+        const roundDropOpts = [{value:'', label:'+ เพิ่มคณะที่จะยื่นในรอบนี้'}, ...available.map(pid => buildProgramOption(pid, prefs.indexOf(pid))).filter(Boolean)];
         return `
         <div class="form-group">
           <label class="form-label" style="color:${r.color}">${r.label}</label>

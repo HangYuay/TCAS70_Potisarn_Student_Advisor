@@ -204,6 +204,54 @@
     </section>
 
     <!-- ============================================================
+         PLAN HUB PAGE (เมนูวางแผน — เลือกเมนูย่อย)
+         ============================================================ -->
+    <section id="page-planner-hub" class="page-section hidden">
+      <div class="page-header">
+        <h2>🗂️ วางแผน</h2>
+        <p>เลือกเมนูที่ต้องการ</p>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="card" style="cursor:pointer;transition:var(--transition)" onclick="navigate('planner')" onmouseenter="this.style.boxShadow='var(--shadow)'" onmouseleave="this.style.boxShadow=''">
+          <div class="card-body" style="display:flex;flex-direction:column;gap:10px;padding:16px">
+            <div style="width:44px;height:44px;border-radius:12px;background:#EEF2FF;display:flex;align-items:center;justify-content:center;font-size:22px">🗂️</div>
+            <div>
+              <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary)">My TCAS Planner</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:3px;line-height:1.4">รวมแผน เป้าหมาย คะแนน กำหนดการ</div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="cursor:pointer;transition:var(--transition)" onclick="navigate('studylog')" onmouseenter="this.style.boxShadow='var(--shadow)'" onmouseleave="this.style.boxShadow=''">
+          <div class="card-body" style="display:flex;flex-direction:column;gap:10px;padding:16px">
+            <div style="width:44px;height:44px;border-radius:12px;background:#D1FAE5;display:flex;align-items:center;justify-content:center;font-size:22px">📖</div>
+            <div>
+              <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary)">ตารางอ่านหนังสือ</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:3px;line-height:1.4">บันทึกชั่วโมงและวิชาที่อ่าน</div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="cursor:pointer;transition:var(--transition)" onclick="navigate('mocktest')" onmouseenter="this.style.boxShadow='var(--shadow)'" onmouseleave="this.style.boxShadow=''">
+          <div class="card-body" style="display:flex;flex-direction:column;gap:10px;padding:16px">
+            <div style="width:44px;height:44px;border-radius:12px;background:#EDE9FE;display:flex;align-items:center;justify-content:center;font-size:22px">🧪</div>
+            <div>
+              <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary)">Mock Test</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:3px;line-height:1.4">ฝึกทำข้อสอบและวิเคราะห์ผล</div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="cursor:pointer;transition:var(--transition)" onclick="navigate('mistakelog')" onmouseenter="this.style.boxShadow='var(--shadow)'" onmouseleave="this.style.boxShadow=''">
+          <div class="card-body" style="display:flex;flex-direction:column;gap:10px;padding:16px">
+            <div style="width:44px;height:44px;border-radius:12px;background:#FEE2E2;display:flex;align-items:center;justify-content:center;font-size:22px">📕</div>
+            <div>
+              <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary)">สมุดบันทึกข้อผิดพลาด</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:3px;line-height:1.4">รวบรวมจุดอ่อนที่ต้องทบทวน</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
          MY TCAS PLANNER PAGE
          ============================================================ -->
     <section id="page-planner" class="page-section hidden">
@@ -283,7 +331,7 @@
           <div class="about-banner-title">TCAS70: Student Advisor for Potisarnpittayakorn School</div>
           <div class="about-banner-sub">โรงเรียนโพธิสารพิทยากร · ปีการศึกษา 2569–2570</div>
         </div>
-        <div class="about-banner-version" id="about-version-badge">v 3.0.0</div>
+        <div class="about-banner-version" id="about-version-badge">v 4.0.0</div>
       </div>
 
       <!-- Purpose -->
@@ -514,7 +562,7 @@
       <span class="mobile-nav-icon">📅</span>
       <span class="mobile-nav-label">ปฏิทิน</span>
     </div>
-    <div class="mobile-nav-item" data-page="planner" onclick="navigate('planner')">
+    <div class="mobile-nav-item" data-page="planner" onclick="navigate('planner-hub')">
       <span class="mobile-nav-icon">🗂️</span>
       <span class="mobile-nav-label">วางแผน</span>
     </div>
@@ -525,8 +573,8 @@
   </nav>
 
   <!-- Scripts -->
-  <script src="js/data.js?v=19"></script>
-  <script src="js/app.js?v=75"></script>
+  <script src="js/data.js?v=20"></script>
+  <script src="js/app.js?v=76"></script>
   <script>
     // Register Service Worker for PWA / offline support
     if ('serviceWorker' in navigator) {

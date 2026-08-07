@@ -5849,3 +5849,20 @@ textarea.form-control {
 .db-check-item:last-child { border-bottom: none; }
 .db-check-icon { font-size: 1rem; flex-shrink: 0; line-height: 1; }
 .db-check-label { flex: 1; font-size: 0.83rem; }
+.db-study-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
+.db-study-day { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.db-study-dot { width: 100%; aspect-ratio: 1; border-radius: 6px; background: var(--surface-3); }
+.db-study-day.done .db-study-dot { background: #1A3A6B; }
+.db-study-day.today .db-study-dot { background: #F0A500; }
+.db-study-day.planned .db-study-dot { background: transparent; border: 2px dashed rgba(26,58,107,0.4); }
+.db-study-lbl { font-size: 0.6rem; font-weight: 600; color: var(--text-muted); }
+.db-study-day.today .db-study-lbl { color: #F0A500; font-weight: 700; }
+.db-study-day.done .db-study-lbl { color: #1A3A6B; }
+.db-study-row-lbl { font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 5px; }
+.db-study-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+.db-study-chip { font-size: 0.63rem; font-weight: 600; padding: 3px 9px; border-radius: 6px; }
+.db-study-week-row { display: flex; align-items: center; gap: 10px; }
+.db-check-badge { font-size: 0.6rem; font-weight: 700; padding: 2px 7px; border-radius: 10px; flex-shrink: 0; letter-spacing: 0.04em; }
+.db-check-badge.done { background: rgba(16,185,129,0.15); color: #10B981; }
+.db-check-badge.incomplete { background: rgba(239,68,68,0.12); color: #EF4444; }
+.db-check-badge.pending { background: rgba(148,163,184,0.15); color: var(--text-muted); }

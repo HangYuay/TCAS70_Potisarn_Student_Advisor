@@ -289,15 +289,26 @@ function renderDashboard() {
   // Round info helpers
   const roundNames4 = {1:'Portfolio',2:'โควตา',3:'Admission',4:'รับตรง'};
   const roundColors4 = {1:'#6366F1',2:'#10B981',3:'#F59E0B',4:'#EF4444'};
+  // Readiness % by round type (reuse values computed above)
+  const roundReadyPct = {
+    1: Math.round(portReady * 100),
+    2: Math.round(gpaReady * 100),
+    3: Math.round(examReady * 100),
+    4: Math.round(Math.min(examReady * 0.6 + gpaReady * 0.4, 1) * 100),
+  };
   const buildRoundSlot = (prog, r) => {
     if (!prog.rounds?.includes(r)) {
       return `<div class="db-round-slot inactive"><div class="db-round-name" style="color:var(--text-muted)">${roundNames4[r]}</div><div class="db-round-na">ไม่รับ</div></div>`;
     }
     const src = prog.roundSources?.[r] || 'tcas69';
     const is69 = src === 'tcas69';
+    const rp = roundReadyPct[r];
+    const hasData = rp > 0;
+    const rpColor = rp >= 70 ? '#10B981' : rp >= 50 ? '#F59E0B' : rp > 0 ? '#EF4444' : 'var(--text-muted)';
     return `<div class="db-round-slot active" style="border-color:${roundColors4[r]}30;background:${roundColors4[r]}0A">
       <div class="db-round-name" style="color:${roundColors4[r]}">${roundNames4[r]}</div>
-      <div class="db-round-src" style="color:${is69?'var(--text-muted)':'var(--success)'}">${is69?'อ้างอิง 69':'TCAS70'}</div>
+      <div style="font-size:0.72rem;font-weight:700;color:${rpColor};margin:2px 0">${hasData?rp+'%':'—'}</div>
+      <div class="db-round-src" style="color:${is69?'var(--text-muted)':'var(--success)'};font-size:0.5rem">${is69?'ref 69':'TCAS70'}</div>
     </div>`;
   };
 
@@ -348,16 +359,52 @@ function renderDashboard() {
   const aLevelBars = aVals.map((v,i)=>({name:aNames[i],val:v,max:100})).filter(t=>t.val>0);
   const hasTgatTpat = tgatBars.length > 0 || tpatBars.length > 0;
 
+  // Study log weekly card
+  const studyLog = Array.isArray(state.studentData.planner?.studyLog) ? state.studentData.planner.studyLog : [];
+  const todayStr = studyLogYMD(new Date());
+  const wkStartStr = studyLogWeekStart(todayStr);
+  const wkDays = Array.from({length:7}, (_, i) => {
+    const d = new Date(wkStartStr + 'T00:00:00'); d.setDate(d.getDate()+i); return studyLogYMD(d);
+  });
+  const tmrStr = (() => { const d = new Date(); d.setDate(d.getDate()+1); return studyLogYMD(d); })();
+  const blkEmoji = { morning:'🌅', afternoon:'🌤', evening:'🌇', night:'🌙' };
+  const blkLbl   = { morning:'เช้า', afternoon:'บ่าย', evening:'เย็น', night:'ค่ำ' };
+  const subChipColor = s => {
+    const pal = [
+      ['rgba(26,58,107,0.12)','#1A3A6B'], ['rgba(109,40,217,0.12)','#6D28D9'],
+      ['rgba(5,150,105,0.12)','#059669'],  ['rgba(217,119,6,0.12)','#D97706'],
+      ['rgba(220,38,38,0.12)','#DC2626'],  ['rgba(29,78,216,0.12)','#1D4ED8'],
+    ];
+    return pal[(s||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0) % pal.length];
+  };
+  const todayLogs = studyLog.filter(e => e.date === todayStr);
+  const tmrLogs   = studyLog.filter(e => e.date === tmrStr);
+  const wkLogs    = studyLog.filter(e => wkDays.includes(e.date));
+  const wkDone    = wkLogs.filter(e => e.done).length;
+
+  // GPAX semester count
+  const gpaKeys6 = ['m401','m402','m411','m412','m421','m422'];
+  const gpaFilledCount = gpaKeys6.filter(k => parseFloat(gpa[k]) > 0).length;
+  const gpaAllFilled = gpaFilledCount === 6;
+
   // Checklist
   const checks = [
-    {label:'กรอกข้อมูลส่วนตัว', done:!!(p.firstName), nav:'profile'},
-    {label:`เลือกคณะเป้าหมาย (${prefs.length}/10)`, done:prefs.length>=10, nav:'profile'},
-    {label:'กรอก GPAX', done:cumGPA>0, nav:'scores'},
-    {label:'กรอกคะแนน TGAT', done:tgatTotal>0, nav:'scores'},
-    {label:'กรอกคะแนน A-Level', done:aCount>0, nav:'scores'},
-    {label:'เพิ่มผลงาน Portfolio', done:totalItems>0, nav:'portfolio'},
-    {label:'ลงทะเบียน student.mytcas.com', done:false, nav:'guide'},
-    {label:'สมัครสอบ TGAT / TPAT', done:false, nav:'guide'},
+    { label:'กรอกข้อมูลส่วนตัว', done:!!(p.firstName), nav:'profile',
+      detail: !p.firstName ? 'ยังไม่ได้กรอกชื่อ-นามสกุล' : '' },
+    { label:`เลือกคณะเป้าหมาย (${prefs.length}/10)`, done:prefs.length>=10, nav:'profile',
+      detail: prefs.length<10 ? `เลือกไปแล้ว ${prefs.length} คณะ ยังขาดอีก ${10-prefs.length} คณะ` : '' },
+    { label:`กรอก GPAX (${gpaFilledCount}/6 เทอม)`, done:gpaAllFilled, nav:'scores',
+      detail: gpaFilledCount===0 ? 'ยังไม่ได้กรอกเกรดแต่ละเทอม (ม.4–ม.6)' : `กรอกแล้ว ${gpaFilledCount}/6 เทอม ยังขาดอีก ${6-gpaFilledCount} เทอม` },
+    { label:'กรอกคะแนน TGAT', done:tgatTotal>0, nav:'scores',
+      detail: tgatTotal===0 ? 'ยังไม่ได้กรอก TGAT1, TGAT2, TGAT3' : '' },
+    { label:'กรอกคะแนน A-Level', done:aCount>0, nav:'scores',
+      detail: aCount===0 ? 'ยังไม่ได้กรอกวิชา A-Level' : aCount<8 ? `กรอกแล้ว ${aCount}/8 วิชา` : '' },
+    { label:'เพิ่มผลงาน Portfolio', done:totalItems>0, nav:'portfolio',
+      detail: totalItems===0 ? 'ยังไม่มีผลงาน กิจกรรม หรือรางวัลในระบบ' : '' },
+    { label:'ลงทะเบียน student.mytcas.com', done:false, pending:true, nav:'guide',
+      detail: 'จำเป็นสำหรับการสมัครสอบและ TCAS ทุกรอบ' },
+    { label:'สมัครสอบ TGAT / TPAT', done:false, pending:true, nav:'guide',
+      detail: 'กำหนดสมัคร: 4–12 พ.ย. 2569' },
   ];
 
   const container = document.getElementById('dashboard-content');
@@ -378,6 +425,7 @@ function renderDashboard() {
             <text x="42" y="52" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.5)" font-family="Prompt,system-ui,sans-serif">ความพร้อม</text>
           </svg>
           <div class="db-hero-legend">
+            <div style="font-size:0.56rem;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:3px">สัดส่วน</div>
             <div class="db-hero-legend-row"><span class="db-hero-legend-dot" style="background:#93C5FD"></span><span>คะแนนสอบ</span><span class="db-hero-legend-pct" style="color:#93C5FD">50%</span></div>
             <div class="db-hero-legend-row"><span class="db-hero-legend-dot" style="background:#FFD166"></span><span>GPAX</span><span class="db-hero-legend-pct" style="color:#FFD166">25%</span></div>
             <div class="db-hero-legend-row"><span class="db-hero-legend-dot" style="background:#F9A8D4"></span><span>Portfolio</span><span class="db-hero-legend-pct" style="color:#F9A8D4">25%</span></div>
@@ -406,8 +454,9 @@ function renderDashboard() {
         const ongoing = ds < 0;
         const label = ongoing ? 'กำลังดำเนินการ' : ds===0 ? 'วันนี้' : `อีก ${ds} วัน`;
         const urgent = !ongoing && ds <= 7;
+        const dateStr = calThDateStr(ev.start);
         return `<div class="db-event-chip" onclick="navigate('calendar')">
-          <div class="db-event-countdown" style="color:${urgent?'#EF4444':ev.color}">${ongoing?ev.icon+' ●':ev.icon+' '+ds}</div>
+          <div class="db-event-countdown" style="color:${urgent?'#EF4444':ev.color}">${ev.icon} ${ongoing?'●':dateStr}</div>
           <div class="db-event-name">${ev.short||ev.title}</div>
           <div class="db-event-date">${label}</div>
         </div>`;
@@ -438,6 +487,7 @@ function renderDashboard() {
     </div>
 
     <!-- ④ ภาพรวมคะแนน -->
+    <div id="db-score-section">
     ${hasTgatTpat||aLevelBars.length?`
     <div class="section-label" style="padding:0 16px;margin-top:18px">📊 ภาพรวมคะแนน <span class="section-label-more" onclick="navigate('scores')">ดูทั้งหมด →</span></div>
     <div class="db-score-grid" style="padding:0 16px">
@@ -450,16 +500,84 @@ function renderDashboard() {
         ${aLevelBars.map(renderScoreBar).join('')}
       </div>`:''}
     </div>`:''}
+    </div>
 
-    <!-- ⑤ สิ่งที่ต้องทำ -->
+    <!-- ⑤ ตารางอ่านหนังสือสัปดาห์นี้ -->
+    <div class="section-label" style="padding:0 16px;margin-top:18px">📖 ตารางอ่านหนังสือสัปดาห์นี้
+      <span class="section-label-more" onclick="navigate('studylog')">ดูทั้งหมด →</span>
+    </div>
+    <div class="card" style="margin:0 16px">
+      <div class="card-body" style="padding:12px 14px">
+        ${studyLog.length === 0
+          ? `<div class="empty-state" style="padding:10px 0">
+               <div class="empty-state-icon">📚</div>
+               <div class="empty-state-title" style="font-size:0.85rem">ยังไม่มีแผนการอ่านหนังสือ</div>
+               <button class="btn btn-primary btn-sm" onclick="navigate('studylog')">เพิ่มตาราง →</button>
+             </div>`
+          : `<div class="db-study-days">
+               ${wkDays.map(day => {
+                 const dt = new Date(day + 'T00:00:00');
+                 const dayEntries = studyLog.filter(e => e.date === day);
+                 const hasDone = dayEntries.some(e => e.done);
+                 const hasPlanned = dayEntries.some(e => !e.done && day >= todayStr);
+                 let cls = 'db-study-day';
+                 if (day === todayStr) cls += ' today';
+                 else if (hasDone) cls += ' done';
+                 else if (hasPlanned) cls += ' planned';
+                 return `<div class="${cls}">
+                   <div class="db-study-dot"></div>
+                   <div class="db-study-lbl">${TH_DAYS_SHORT[dt.getDay()]}</div>
+                 </div>`;
+               }).join('')}
+             </div>
+             <div style="height:1px;background:var(--border);margin:8px 0"></div>
+             <div style="margin-bottom:${tmrLogs.length?'8':'0'}px">
+               <div class="db-study-row-lbl">📅 วันนี้</div>
+               ${todayLogs.length
+                 ? `<div class="db-study-chips">${todayLogs.map(e => {
+                     const [bg,fg] = subChipColor(e.subject);
+                     const blk = e.block||'morning';
+                     return `<span class="db-study-chip" style="background:${bg};color:${fg}">${blkEmoji[blk]||'📖'} ${blkLbl[blk]||blk} · ${e.subject||'ไม่ระบุ'}</span>`;
+                   }).join('')}</div>`
+                 : `<div style="font-size:0.72rem;color:var(--text-muted)">ไม่มีแผนวันนี้</div>`}
+             </div>
+             ${tmrLogs.length ? `<div>
+               <div class="db-study-row-lbl">🔜 พรุ่งนี้</div>
+               <div class="db-study-chips">${tmrLogs.map(e => {
+                 const [bg,fg] = subChipColor(e.subject);
+                 const blk = e.block||'morning';
+                 return `<span class="db-study-chip" style="background:${bg};color:${fg}">${blkEmoji[blk]||'📖'} ${blkLbl[blk]||blk} · ${e.subject||'ไม่ระบุ'}</span>`;
+               }).join('')}</div>
+             </div>` : ''}
+             ${wkLogs.length ? `<div style="height:1px;background:var(--border);margin:8px 0"></div>
+             <div class="db-study-week-row">
+               <div style="font-size:0.68rem;font-weight:600;color:var(--text-secondary);flex-shrink:0;white-space:nowrap">สัปดาห์นี้</div>
+               <div style="flex:1;height:5px;background:var(--surface-3);border-radius:3px;overflow:hidden">
+                 <div style="height:100%;width:${Math.round(wkDone/wkLogs.length*100)}%;background:linear-gradient(90deg,#1A3A6B,#4A7ABF);border-radius:3px"></div>
+               </div>
+               <div style="font-size:0.68rem;font-weight:700;color:#1A3A6B;flex-shrink:0">${wkDone}/${wkLogs.length} เซสชัน</div>
+             </div>` : ''}
+           `
+        }
+      </div>
+    </div>
+
+    <!-- ⑥ สิ่งที่ต้องทำ -->
     <div class="section-label" style="padding:0 16px;margin-top:18px">✅ สิ่งที่ต้องทำ</div>
     <div class="card" style="margin:0 16px">
       <div class="card-body" style="padding:4px 16px">
-        ${checks.map(c => `<div class="db-check-item" onclick="navigate('${c.nav}')" style="cursor:pointer">
+        ${checks.map(c => {
+          const bt = c.pending ? 'pending' : c.done ? 'done' : 'incomplete';
+          const badgeLabel = bt==='done' ? 'ครบ' : bt==='pending' ? 'ค้าง' : 'ไม่ครบ';
+          return `<div class="db-check-item" onclick="navigate('${c.nav}')" style="cursor:pointer">
           <div class="db-check-icon">${c.done?'✅':'⬜'}</div>
-          <div class="db-check-label" style="text-decoration:${c.done?'line-through':''};color:${c.done?'var(--text-muted)':'var(--text-primary)'}">${c.label}</div>
-          ${!c.done?'<div style="font-size:0.65rem;color:var(--text-muted)">→</div>':''}
-        </div>`).join('')}
+          <div style="flex:1;min-width:0">
+            <div class="db-check-label" style="text-decoration:${c.done?'line-through':''};color:${c.done?'var(--text-muted)':'var(--text-primary)'}">${c.label}</div>
+            ${!c.done&&c.detail?`<div style="font-size:0.68rem;color:var(--text-muted);margin-top:1px">${c.detail}</div>`:''}
+          </div>
+          <span class="db-check-badge ${bt}">${badgeLabel}</span>
+        </div>`;
+        }).join('')}
       </div>
     </div>
 
@@ -2372,6 +2490,9 @@ function saveScores() {
 
   saveData();
   showToast('✅ บันทึกคะแนนสอบแล้ว');
+  // Refresh dashboard in background so score section is current when user navigates back
+  const dbContainer = document.getElementById('dashboard-content');
+  if (dbContainer) renderDashboard();
 }
 
 // ============================================================

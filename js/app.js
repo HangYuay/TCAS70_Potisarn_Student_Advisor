@@ -387,6 +387,37 @@ function renderDashboard() {
   const gpaFilledCount = gpaKeys6.filter(k => parseFloat(gpa[k]) > 0).length;
   const gpaAllFilled = gpaFilledCount === 6;
 
+  // Required subjects from round-3 selected programs
+  const r3Progs = prefs.map(id => TCAS_DATA.programs.find(p => p.id === id))
+    .filter(p => p?.rounds?.includes(3));
+  const reqSubjsSet = new Set();
+  r3Progs.forEach(prog => Object.keys(TCAS_CATEGORY_CRITERIA[prog.category] || {}).forEach(s => reqSubjsSet.add(s)));
+  const reqTGATList   = [...reqSubjsSet].filter(s => s.startsWith('tgat'));
+  const reqTPATList   = [...reqSubjsSet].filter(s => s.startsWith('tpat'));
+  const reqALevelList = [...reqSubjsSet].filter(s => !s.startsWith('tgat') && !s.startsWith('tpat'));
+
+  const filledOf = list => list.filter(s => parseFloat(scores[s]) > 0).length;
+  const missingLbls = list => list.filter(s => !(parseFloat(scores[s]) > 0))
+    .map(s => SCORE_LABEL[s] || s).join(', ');
+
+  // TGAT: use program-required subjects; fallback all 3
+  const tgatCheckList   = reqTGATList.length > 0 ? reqTGATList : ['tgat1','tgat2','tgat3'];
+  const tgatCheckFilled = filledOf(tgatCheckList);
+  const tgatCheckDone   = tgatCheckFilled === tgatCheckList.length;
+  const tgatDetailMiss  = missingLbls(tgatCheckList);
+
+  // TPAT: only if programs need it
+  const tpatCheckFilled = filledOf(reqTPATList);
+  const tpatCheckDone   = reqTPATList.length === 0 || tpatCheckFilled === reqTPATList.length;
+  const tpatDetailMiss  = missingLbls(reqTPATList);
+
+  // A-Level: use program-required subjects; fallback any > 0
+  const aLevelCheckList   = reqALevelList.length > 0 ? reqALevelList : [];
+  const aLevelCheckFilled = aLevelCheckList.length > 0 ? filledOf(aLevelCheckList) : aCount;
+  const aLevelCheckTotal  = aLevelCheckList.length > 0 ? aLevelCheckList.length : null;
+  const aLevelCheckDone   = aLevelCheckList.length > 0 ? aLevelCheckFilled === aLevelCheckList.length : aCount > 0;
+  const aLevelDetailMiss  = aLevelCheckList.length > 0 ? missingLbls(aLevelCheckList) : '';
+
   // Checklist
   const checks = [
     { label:'กรอกข้อมูลส่วนตัว', done:!!(p.firstName), nav:'profile',
@@ -395,10 +426,15 @@ function renderDashboard() {
       detail: prefs.length<10 ? `เลือกไปแล้ว ${prefs.length} คณะ ยังขาดอีก ${10-prefs.length} คณะ` : '' },
     { label:`กรอก GPAX (${gpaFilledCount}/6 เทอม)`, done:gpaAllFilled, nav:'scores',
       detail: gpaFilledCount===0 ? 'ยังไม่ได้กรอกเกรดแต่ละเทอม (ม.4–ม.6)' : `กรอกแล้ว ${gpaFilledCount}/6 เทอม ยังขาดอีก ${6-gpaFilledCount} เทอม` },
-    { label:'กรอกคะแนน TGAT', done:tgatTotal>0, nav:'scores',
-      detail: tgatTotal===0 ? 'ยังไม่ได้กรอก TGAT1, TGAT2, TGAT3' : '' },
-    { label:'กรอกคะแนน A-Level', done:aCount>0, nav:'scores',
-      detail: aCount===0 ? 'ยังไม่ได้กรอกวิชา A-Level' : aCount<8 ? `กรอกแล้ว ${aCount}/8 วิชา` : '' },
+    { label:`กรอกคะแนน TGAT (${tgatCheckFilled}/${tgatCheckList.length})`, done:tgatCheckDone, nav:'scores',
+      detail: tgatCheckDone ? '' : tgatCheckFilled===0 ? 'ยังไม่ได้กรอกคะแนน TGAT' : `ยังขาด: ${tgatDetailMiss}` },
+    ...(reqTPATList.length > 0 ? [{
+      label: `กรอกคะแนน TPAT (${tpatCheckFilled}/${reqTPATList.length})`, done:tpatCheckDone, nav:'scores',
+      detail: tpatCheckDone ? '' : tpatCheckFilled===0 ? 'ยังไม่ได้กรอกคะแนน TPAT ที่จำเป็น' : `ยังขาด: ${tpatDetailMiss}`
+    }] : []),
+    { label: aLevelCheckTotal ? `กรอกคะแนน A-Level (${aLevelCheckFilled}/${aLevelCheckTotal})` : 'กรอกคะแนน A-Level',
+      done: aLevelCheckDone, nav:'scores',
+      detail: aLevelCheckDone ? '' : aLevelCheckList.length > 0 ? `ยังขาด: ${aLevelDetailMiss}` : 'ยังไม่ได้กรอกวิชา A-Level' },
     { label:'เพิ่มผลงาน Portfolio', done:totalItems>0, nav:'portfolio',
       detail: totalItems===0 ? 'ยังไม่มีผลงาน กิจกรรม หรือรางวัลในระบบ' : '' },
     { label:'ลงทะเบียน student.mytcas.com', done:false, pending:true, nav:'guide',

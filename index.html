@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="images/icon-180.png">
   <title>TCAS70: Student Advisor for Potisarnpittayakorn School</title>
-  <link rel="stylesheet" href="css/style.css?v=29">
+  <link rel="stylesheet" href="css/style.css?v=30">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='12' fill='%231B3BAE'/><polygon points='50,5 82,18 88,46 50,48 12,46 18,18' fill='%231B3BAE'/><rect x='12' y='46' width='18' height='36' fill='%231B3BAE'/><rect x='70' y='46' width='18' height='36' fill='%231B3BAE'/><path d='M50,8 C62,6 82,16 86,36 C89,50 84,66 70,76 C62,82 54,86 51,89 L50,92 L49,89 C46,86 38,82 30,76 C16,66 11,50 14,36 C18,16 38,6 50,8Z' fill='white'/><path d='M50,12 C60,10 78,20 82,38 C85,52 80,67 67,77 C59,83 52,87 50.5,90 L50,92 L49.5,90 C48,87 41,83 33,77 C20,67 15,52 18,38 C22,20 40,10 50,12Z' fill='%23D61A8E'/></svg>">
 </head>
 <body>
@@ -59,7 +59,7 @@
         <div class="student-avatar" id="student-avatar"><img src="images/student-avatar.svg" alt="avatar" class="avatar-img"></div>
         <span class="student-chip-name" id="student-chip-name">นักเรียน</span>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="confirmReset()" title="รีเซ็ตข้อมูล"
+      <button class="btn btn-ghost btn-sm header-reset-btn" onclick="confirmReset()" title="รีเซ็ตข้อมูล"
         style="color:rgba(255,255,255,0.6);padding:6px 8px">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.36"/>
@@ -81,6 +81,15 @@
        SIDEBAR
        ============================================================ -->
   <nav class="app-sidebar" id="app-sidebar">
+    <div class="sidebar-section sidebar-mobile-actions">
+      <div class="sidebar-section-label">การดำเนินการ</div>
+      <div class="nav-item" onclick="closeMobileSidebar();exportSummary()">
+        <span class="nav-icon">📤</span><span>ส่งออกรายงาน</span>
+      </div>
+      <div class="nav-item" onclick="closeMobileSidebar();confirmReset()">
+        <span class="nav-icon">🔄</span><span>รีเซ็ตข้อมูล</span>
+      </div>
+    </div>
     <div class="sidebar-section">
       <div class="sidebar-section-label">หน้าหลัก</div>
       <div class="nav-item active" data-page="dashboard">
@@ -574,7 +583,7 @@
 
   <!-- Scripts -->
   <script src="js/data.js?v=21"></script>
-  <script src="js/app.js?v=88"></script>
+  <script src="js/app.js?v=89"></script>
   <script>
     // Register Service Worker for PWA / offline support
     if ('serviceWorker' in navigator) {

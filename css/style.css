@@ -251,6 +251,12 @@ body {
   padding: 12px 12px 4px;
 }
 
+.sidebar-mobile-actions {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
 .sidebar-section-label {
   font-size: 0.65rem;
   font-weight: 600;
@@ -3033,6 +3039,7 @@ textarea.form-control {
   /* Show mobile menu toggle, hide desktop-only elements */
   .mobile-menu-toggle { display: flex; }
   .header-export-btn { display: none !important; }
+  .header-reset-btn { display: none !important; }
   .student-chip-name { display: none; }
   .header-title p { display: none; }
   .header-title h1 { font-size: 0.82rem; }
@@ -3186,6 +3193,7 @@ textarea.form-control {
   .app-sidebar { transform: translateX(0) !important; }
   .mobile-bottom-nav { display: none !important; }
   .mobile-menu-toggle { display: none !important; }
+  .sidebar-mobile-actions { display: none !important; }
   .header-export-btn { display: flex !important; }
   .student-chip-name { display: inline !important; }
 }

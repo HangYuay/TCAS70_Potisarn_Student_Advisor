@@ -387,11 +387,9 @@ function renderDashboard() {
   const gpaFilledCount = gpaKeys6.filter(k => parseFloat(gpa[k]) > 0).length;
   const gpaAllFilled = gpaFilledCount === 6;
 
-  // Required subjects from round-3 selected programs
-  const r3Progs = prefs.map(id => TCAS_DATA.programs.find(p => p.id === id))
-    .filter(p => p?.rounds?.includes(3));
-  const reqSubjsSet = new Set();
-  r3Progs.forEach(prog => Object.keys(TCAS_CATEGORY_CRITERIA[prog.category] || {}).forEach(s => reqSubjsSet.add(s)));
+  // Required subjects — union across ALL selected programs (same source as "วิชาที่ต้องสอบ" on the scores page,
+  // so the checklist and that widget always agree on what's actually required)
+  const reqSubjsSet = new Set(Object.keys(getRequiredSubjects()));
   const reqTGATList   = [...reqSubjsSet].filter(s => s.startsWith('tgat'));
   const reqTPATList   = [...reqSubjsSet].filter(s => s.startsWith('tpat'));
   const reqALevelList = [...reqSubjsSet].filter(s => !s.startsWith('tgat') && !s.startsWith('tpat'));
@@ -5612,34 +5610,274 @@ function renderRecRankCard(program, result, rank, interests = [], wishlist = [])
 // ============================================================
 // EXPORT / PRINT SUMMARY
 // ============================================================
+// ---- Print report helpers ----
+function _reportRoundChance(prog, round, gpaVal, portScoreVal) {
+  const minGPA = parseFloat(prog.minGPA) || 0;
+  if (round === 1) {
+    const gpaOk = gpaVal >= minGPA || gpaVal === 0;
+    if (!gpaOk)              return { label:'GPA ไม่ถึงเกณฑ์',      bg:'#FEE2E2', tx:'#7F1D1D' };
+    if (portScoreVal >= 3)   return { label:'โอกาสสูง',             bg:'#DCFCE7', tx:'#14532D' };
+    if (portScoreVal >= 1)   return { label:'พอมีโอกาส',            bg:'#FEF3C7', tx:'#92400E' };
+    return                          { label:'ต้องเพิ่มพอร์ต',        bg:'#FEE2E2', tx:'#7F1D1D' };
+  }
+  if (round === 2) {
+    const gpaOk = gpaVal >= minGPA || gpaVal === 0;
+    const gap = gpaVal - minGPA;
+    if (gap >= 0.25) return { label:`GPA เกินเกณฑ์ +${gap.toFixed(2)}`, bg:'#DCFCE7', tx:'#14532D' };
+    if (gpaOk)        return { label:'GPA ผ่านเกณฑ์ (±ชายขอบ)',       bg:'#FEF3C7', tx:'#92400E' };
+    return                    { label:`GPA ต่ำกว่าเกณฑ์ ${Math.abs(gap).toFixed(2)}`, bg:'#FEE2E2', tx:'#7F1D1D' };
+  }
+  return { label:'ตรวจสอบเพิ่มเติม', bg:'#F1F5F9', tx:'#64748B' };
+}
+
+function _reportRound3Chance(prog, scores) {
+  const hist   = TCAS_HISTORICAL_STATS[prog.id];
+  const lastY  = hist ? Object.keys(hist).sort().pop() : null;
+  const cutoff = lastY ? hist[lastY].min : null;
+  const ws     = calculateWeightedScore(prog, scores);
+
+  if (cutoff == null) return { crit:'ไม่มีข้อมูลเกณฑ์ TCAS69', badge:{ label:'ไม่มีข้อมูล', bg:'#F1F5F9', tx:'#64748B' }, high:false };
+  if (ws.noData)       return { crit:`เกณฑ์ขั้นต่ำ ${cutoff.toFixed(1)}%`, badge:{ label:'ยังไม่กรอกคะแนน', bg:'#F1F5F9', tx:'#64748B' }, high:false };
+
+  if (ws.complete) {
+    const tier = getAssessmentTier(ws.score, cutoff);
+    return { crit:`${cutoff.toFixed(1)}% / ${ws.score.toFixed(1)}%`, badge:{ label:tier.label, bg:tier.bg, tx:tier.textColor }, high:tier.tier<=2 };
+  }
+  const tier = getAssessmentTier(ws.partialKnown, cutoff);
+  return { crit:`${cutoff.toFixed(1)}% / ${ws.partialKnown.toFixed(1)}%*`, badge:{ label:tier.label+' *', bg:tier.bg, tx:tier.textColor }, high:tier.tier<=2 };
+}
+
+function _reportGpaSparkline(trend) {
+  if (trend.length < 2) return '';
+  const w = 160, h = 34, pad = 4;
+  const vals = trend.map(t => t.v);
+  const minV = Math.min(...vals) - 0.1, maxV = Math.max(...vals) + 0.1;
+  const range = Math.max(maxV - minV, 0.1);
+  const stepX = (w - 2*pad) / (trend.length - 1);
+  const pts = trend.map((t,i) => {
+    const x = pad + i*stepX;
+    const y = h - pad - ((t.v - minV) / range) * (h - 2*pad);
+    return [x, y];
+  });
+  const last = pts[pts.length-1];
+  return `<svg class="spark" width="100%" height="34" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <polyline points="${pts.map(pt=>pt.map(n=>n.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="#1A3A6B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="3.2" fill="#F0A500"/>
+  </svg>`;
+}
+
 function exportSummary() {
-  const p = state.studentData.profile;
-  const gpa = state.studentData.gpa;
-  const scores = state.studentData.scores;
-  const portfolio = state.studentData.portfolio;
+  const sd = state.studentData;
+  const p = sd.profile;
+  const gpa = sd.gpa;
+  const scores = sd.scores;
+  const portfolio = sd.portfolio;
+  const prefs = getPreferences();
   const name = `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'นักเรียน';
 
-  const { results: topRecs } = getTopRecommendations(5);
+  const PROGRAM_LABELS = { EP:'English Program (EP)', IEP:'Intensive English Program (IEP)', GP:'General Program (GP)' };
+  const todayThai = new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
 
-  const scoreRows = [
-    { name: 'GPAX สะสม', val: gpa.cumulative, max: '4.00', unit: '' },
-    { name: 'TGAT1 ภาษาอังกฤษ', val: scores.tgat1, max: 100, unit: 'คะแนน' },
-    { name: 'TGAT2 การคิดวิเคราะห์', val: scores.tgat2, max: 100, unit: 'คะแนน' },
-    { name: 'TGAT3 สมรรถนะ', val: scores.tgat3, max: 100, unit: 'คะแนน' },
-    { name: 'TPAT1 วิชาเฉพาะแพทย์', val: scores.tpat1, max: 300, unit: 'คะแนน' },
-    { name: 'A-Level คณิต 1', val: scores.amath1, max: 100, unit: 'คะแนน' },
-    { name: 'A-Level ภาษาอังกฤษ', val: scores.aeng, max: 100, unit: 'คะแนน' },
-    { name: 'A-Level ภาษาไทย', val: scores.athai, max: 100, unit: 'คะแนน' },
-    { name: 'A-Level ฟิสิกส์', val: scores.aphy, max: 100, unit: 'คะแนน' },
-    { name: 'A-Level เคมี', val: scores.achem, max: 100, unit: 'คะแนน' },
-    { name: 'A-Level ชีววิทยา', val: scores.abio, max: 100, unit: 'คะแนน' },
-    { name: 'A-Level สังคม', val: scores.asocial, max: 100, unit: 'คะแนน' },
-  ].filter(r => r.val);
+  // ---- readiness (same formula as dashboard hero) ----
+  const cumGPA = parseFloat(gpa.cumulative) || 0;
+  const tgat1 = parseFloat(scores.tgat1)||0, tgat2 = parseFloat(scores.tgat2)||0, tgat3 = parseFloat(scores.tgat3)||0;
+  const tgatTotal = tgat1+tgat2+tgat3;
+  const tpat1 = parseFloat(scores.tpat1)||0, tpat2 = parseFloat(scores.tpat2)||0,
+        tpat3s = parseFloat(scores.tpat3)||0, tpat4 = parseFloat(scores.tpat4)||0, tpat5 = parseFloat(scores.tpat5)||0;
+  const aKeys = ['amath1','aeng','athai','ascience','achem','abio','aphy','asocial'];
+  const aLabels = { amath1:'คณิตศาสตร์ 1', aeng:'ภาษาอังกฤษ', athai:'ภาษาไทย', ascience:'วิทยาศาสตร์ประยุกต์', achem:'เคมี', abio:'ชีววิทยา', aphy:'ฟิสิกส์', asocial:'สังคมศึกษา' };
+  const aVals = aKeys.map(k => parseFloat(scores[k])||0);
 
-  const allAwards = [
-    ...(portfolio.awards || []).map(a => ({ ...a, _type: 'รางวัล' })),
-    ...(portfolio.competitions || []).map(a => ({ ...a, _type: 'การแข่งขัน' }))
-  ];
+  const totalItems = (portfolio.camps?.length||0)+(portfolio.activities?.length||0)+
+    (portfolio.awards?.length||0)+(portfolio.competitions?.length||0)+(portfolio.volunteer?.length||0);
+  const portCats5 = ['camps','activities','awards','competitions','volunteer'].filter(k => (portfolio[k]||[]).length>0).length;
+  const portScoreVal = portCats5>=4 ? 3 : portCats5>=2 ? 2 : portCats5>=1 ? 1 : 0;
+
+  const gpaReady = cumGPA > 0 ? cumGPA/4 : 0;
+  const portReady = Math.min(totalItems/10, 1);
+  const examPcts = [];
+  if (tgatTotal > 0) examPcts.push(tgatTotal/300);
+  if (tpat1 > 0) examPcts.push(tpat1/300);
+  [tpat2,tpat3s,tpat4,tpat5].forEach(v => { if (v > 0) examPcts.push(v/100); });
+  aVals.forEach(v => { if (v > 0) examPcts.push(v/100); });
+  const examReady = examPcts.length ? examPcts.reduce((a,b)=>a+b,0)/examPcts.length : 0;
+  const overall = 0.5*examReady + 0.25*gpaReady + 0.25*portReady;
+  const overallPct = Math.round(overall*100);
+
+  // ---- GPA trend ----
+  const gpaSemLabels = { m401:'ม.4/1', m402:'ม.4/2', m411:'ม.5/1', m412:'ม.5/2', m421:'ม.6/1', m422:'ม.6/2' };
+  const gpaTrend = Object.keys(gpaSemLabels).map(k => ({ label:gpaSemLabels[k], v:parseFloat(gpa[k])||0 })).filter(x => x.v>0);
+  let gpaTrendNote = '';
+  if (gpaTrend.length >= 2) {
+    const diff = gpaTrend[gpaTrend.length-1].v - gpaTrend[0].v;
+    gpaTrendNote = diff > 0.03 ? `↑ เพิ่มขึ้นต่อเนื่อง ${gpaTrend.length} ภาคเรียน (${gpaTrend[0].label}–${gpaTrend[gpaTrend.length-1].label})`
+      : diff < -0.03 ? `↓ ลดลงจาก ${gpaTrend[0].label} ถึง ${gpaTrend[gpaTrend.length-1].label}`
+      : `→ ค่อนข้างคงที่ตลอด ${gpaTrend.length} ภาคเรียน`;
+  }
+
+  // ---- required subjects — union across ALL selected programs (same source as the scores-page "วิชาที่ต้องสอบ" widget) ----
+  const reqSubjsSet = new Set(Object.keys(getRequiredSubjects()));
+  const missingReq = [...reqSubjsSet].filter(s => !(parseFloat(scores[s])>0)).map(s => SCORE_LABEL[s] || s);
+
+  // ---- best chance per selected program (for the "โอกาสสูง-สูงมาก" stat) ----
+  const highChanceCount = prefs.filter(id => {
+    const prog = TCAS_DATA.programs.find(pp => pp.id === id);
+    if (!prog) return false;
+    let high = false;
+    if (prog.rounds?.includes(1)) high = high || _reportRoundChance(prog,1,cumGPA,portScoreVal).label === 'โอกาสสูง';
+    if (prog.rounds?.includes(2)) high = high || _reportRoundChance(prog,2,cumGPA,portScoreVal).label.startsWith('GPA เกินเกณฑ์');
+    if (prog.rounds?.includes(3)) high = high || _reportRound3Chance(prog, scores).high;
+    return high;
+  }).length;
+
+  // ---- score category card builders ----
+  const buildBar = (label, val, max, missing) => `
+    <div class="subrow${missing ? ' missing' : ''}">
+      <div class="n">${label}</div>
+      <div class="bar">${missing ? '' : `<i style="width:${Math.min(Math.round(val/max*100),100)}%"></i>`}</div>
+      <div class="pv">${missing ? 'ยังไม่กรอก' : `${val}/${max}`}</div>
+    </div>`;
+
+  const tgatAvgVals = [tgat1,tgat2,tgat3].filter(v=>v>0);
+  const tgatAvg = tgatAvgVals.length ? Math.round(tgatAvgVals.reduce((a,b)=>a+b,0)/tgatAvgVals.length) : null;
+  const tgatCard = `
+    <div class="score-card">
+      <div class="hd"><div class="tag" style="background:#2856A3">TGAT</div><div class="nm">General Aptitude Test</div><div class="avg">${tgatAvg!=null?tgatAvg+'%':'—'}</div></div>
+      ${buildBar('TGAT1 ภาษาอังกฤษ', tgat1, 100, tgat1<=0)}
+      ${buildBar('TGAT2 การคิดวิเคราะห์', tgat2, 100, tgat2<=0)}
+      ${buildBar('TGAT3 สมรรถนะการทำงาน', tgat3, 100, tgat3<=0)}
+    </div>`;
+
+  const tpatExtra = [['TPAT2',tpat2],['TPAT3',tpat3s],['TPAT4',tpat4],['TPAT5',tpat5]].filter(([,v])=>v>0);
+  const tpatAvgVals = [tpat1>0?tpat1/300*100:null, ...([tpat2,tpat3s,tpat4,tpat5].filter(v=>v>0))].filter(v=>v!=null);
+  const tpatAvg = tpatAvgVals.length ? Math.round(tpatAvgVals.reduce((a,b)=>a+b,0)/tpatAvgVals.length) : null;
+  const tpatCard = `
+    <div class="score-card">
+      <div class="hd"><div class="tag" style="background:#0F766E">TPAT</div><div class="nm">Professional Aptitude Test</div><div class="avg">${tpatAvg!=null?tpatAvg+'%':'—'}</div></div>
+      ${buildBar('TPAT1 วิชาเฉพาะแพทย์', tpat1, 300, tpat1<=0)}
+      ${tpatExtra.length ? tpatExtra.map(([lbl,v]) => buildBar(lbl, v, 100, false)).join('') : `<div class="subrow missing"><div class="n">TPAT2–5</div><div class="bar"></div><div class="pv">ไม่ได้กรอก</div></div>`}
+    </div>`;
+
+  const aFilled = aKeys.map((k,i) => ({ k, label:aLabels[k], v:aVals[i] })).filter(x => x.v>0);
+  const aAvg = aFilled.length ? Math.round(aFilled.reduce((s,x)=>s+x.v,0)/aFilled.length) : null;
+  const aCard = `
+    <div class="score-card">
+      <div class="hd"><div class="tag" style="background:#7C2D12">A-Level</div><div class="nm">Academic Level</div><div class="avg">${aAvg!=null?aAvg+'%':'—'}</div></div>
+      ${aFilled.length ? aFilled.map(x => buildBar(x.label, x.v, 100, false)).join('') : `<div class="subrow missing"><div class="n">ยังไม่ได้กรอกคะแนน A-Level</div><div class="bar"></div><div class="pv"></div></div>`}
+    </div>`;
+
+  const gpaxCard = `
+    <div class="score-card">
+      <div class="hd"><div class="tag" style="background:#1A3A6B">GPAX</div><div class="nm">เกรดเฉลี่ยสะสม</div></div>
+      <div class="gpax-big">
+        <div class="num">${cumGPA>0?cumGPA.toFixed(2):'—'}<small>/4.00</small></div>
+        ${_reportGpaSparkline(gpaTrend)}
+      </div>
+      ${gpaTrendNote ? `<div style="font-size:.6rem;color:var(--text-secondary);margin-top:3px">${gpaTrendNote}</div>` : ''}
+    </div>`;
+
+  // ---- portfolio condensed ----
+  const awardsComp = [...(portfolio.awards||[]), ...(portfolio.competitions||[])];
+  const campsList = portfolio.camps||[];
+  const actVolList = [...(portfolio.activities||[]), ...(portfolio.volunteer||[])];
+  const pfChipsSrc = [
+    ...awardsComp.map(a => ({ icon:'🏆', name:a.name, level:a.level })),
+    ...campsList.map(a => ({ icon:'⛺', name:a.name })),
+    ...actVolList.map(a => ({ icon:'🤝', name:a.name })),
+  ].slice(0,6);
+  const levelChip = lvl => {
+    const l = TCAS_DATA.awardLevels.find(x => x.id === lvl);
+    if (!l) return '';
+    return `<span class="lv" style="background:${l.color}22;color:${l.color}">${l.name.replace('ระดับ','')}</span>`;
+  };
+  const portfolioSection = totalItems > 0 ? `
+      <div class="section">
+        <div class="section-title"><span class="ic">🏆</span>Portfolio<span class="count">${totalItems} รายการ</span></div>
+        <div class="pf-row">
+          <div class="pf-count"><div class="v">${awardsComp.length}</div><div class="l">รางวัล/แข่งขัน</div></div>
+          <div class="pf-count"><div class="v">${campsList.length}</div><div class="l">ค่าย</div></div>
+          <div class="pf-count"><div class="v">${actVolList.length}</div><div class="l">กิจกรรม/อาสา</div></div>
+          <div class="pf-chips">
+            ${pfChipsSrc.map(c => `<div class="pf-chip">${c.icon} ${c.name || '—'} ${c.level ? levelChip(c.level) : ''}</div>`).join('')}
+          </div>
+        </div>
+      </div>` : '';
+
+  // ---- 4-round plan table ----
+  const roundMeta = { 1:{ label:'1 · Portfolio', color:'#1A3A6B' }, 2:{ label:'2 · โควตา', color:'#2856A3' }, 3:{ label:'3 · Admission', color:'#F0A500' }, 4:{ label:'4 · รับตรงอิสระ', color:'#64748B' } };
+  let roundRows = '';
+  [1,2,3,4].forEach(r => {
+    prefs.forEach((pid, idx) => {
+      const prog = TCAS_DATA.programs.find(pp => pp.id === pid);
+      if (!prog || !prog.rounds?.includes(r)) return;
+      const uni = getUniversityById(prog.universityId);
+      let crit, badge;
+      if (r === 1) { badge = _reportRoundChance(prog,1,cumGPA,portScoreVal); crit = `GPA ≥ ${prog.minGPA?parseFloat(prog.minGPA).toFixed(2):'—'}`; }
+      else if (r === 2) { badge = _reportRoundChance(prog,2,cumGPA,portScoreVal); crit = `GPA ≥ ${prog.minGPA?parseFloat(prog.minGPA).toFixed(2):'—'} / ${cumGPA>0?cumGPA.toFixed(2):'—'}`; }
+      else if (r === 3) { const rc = _reportRound3Chance(prog, scores); badge = rc.badge; crit = rc.crit; }
+      else { badge = { label:'ตรวจสอบเพิ่มเติม', bg:'#F1F5F9', tx:'#64748B' }; crit = 'เกณฑ์เฉพาะมหาวิทยาลัย'; }
+      roundRows += `<tr>
+        <td><span class="round-pill" style="background:${roundMeta[r].color}">${roundMeta[r].label}</span></td>
+        <td>${idx+1}</td>
+        <td><span class="uni-tag" style="background:${uni.color}">${uni.shortName}</span></td>
+        <td>${prog.program} · ${uni.name}</td>
+        <td>${crit}</td>
+        <td><span class="chance-badge" style="background:${badge.bg};color:${badge.tx}">${badge.label}</span></td>
+      </tr>`;
+    });
+  });
+  const roundSection = prefs.length > 0
+    ? `<table class="rt">
+        <thead><tr><th style="width:16%">รอบ</th><th style="width:6%">#</th><th style="width:12%">มหาวิทยาลัย</th><th>คณะ / สาขา</th><th style="width:16%">เกณฑ์ / คะแนนฉัน</th><th style="width:16%">โอกาส</th></tr></thead>
+        <tbody>${roundRows || `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px 0">คณะที่เลือกไว้ยังไม่เปิดรับในรอบใดเลย</td></tr>`}</tbody>
+      </table>`
+    : `<div style="text-align:center;color:var(--text-muted);font-size:.72rem;padding:20px 0">ยังไม่ได้เลือกคณะเป้าหมาย — ไปที่โปรไฟล์เพื่อเลือกได้สูงสุด 10 อันดับ</div>`;
+
+  // ---- top matches (reuses the same ranking used across the app) ----
+  const { results: topRecs, fromPrefs } = getTopRecommendations(3);
+  const recSection = topRecs.length ? `
+      <div class="section">
+        <div class="section-title"><span class="ic">✨</span>คณะที่มีความเหมาะสมสูงสุด<span class="count">${fromPrefs ? 'จากคณะที่เลือกไว้' : `จาก ${TCAS_DATA.programs.length.toLocaleString()} หลักสูตร`}</span></div>
+        ${topRecs.map(({ program, result }, i) => {
+          const uni = getUniversityById(program.universityId);
+          const pct = Math.min(result.score, 100);
+          return `<div class="rec-row">
+            <div class="rec-rank">${i+1}</div>
+            <div class="rec-badge" style="background:${uni.color}">${uni.shortName}</div>
+            <div class="rec-info"><div class="n">${program.program}</div><div class="f">${program.faculty} · ${uni.name}</div></div>
+            <div class="rec-match">${pct}%</div>
+          </div>`;
+        }).join('')}
+      </div>` : '';
+
+  // ---- upcoming dates ----
+  const todayMid = new Date(); todayMid.setHours(0,0,0,0);
+  const upcoming = TCAS70_EVENTS.filter(ev => new Date(ev.end+'T00:00:00') >= todayMid).slice(0,4);
+  const dateSection = upcoming.length ? `
+      <div class="section">
+        <div class="section-title"><span class="ic">📅</span>วันสำคัญที่ต้องเตรียมตัว</div>
+        <div class="date-strip">
+          ${upcoming.map(ev => {
+            const s = new Date(ev.start+'T00:00:00');
+            const ds = Math.round((s-todayMid)/86400000);
+            const ongoing = ds < 0;
+            const label = ongoing ? 'กำลังดำเนินการ' : ds===0 ? 'วันนี้' : `อีก ${ds} วัน`;
+            return `<div class="date-card"><div class="d">${calThDateRange(ev.start, ev.end)}</div><div class="t">${ev.short||ev.title}</div><span class="badge">${label}</span></div>`;
+          }).join('')}
+        </div>
+      </div>` : '';
+
+  // ---- readiness stats + parent callout ----
+  const missingReqNote = missingReq.length
+    ? `${missingReq.length} วิชา<br><span style="font-weight:400">${missingReq.slice(0,2).join(', ')}${missingReq.length>2?' และอื่นๆ':''}</span>`
+    : (reqSubjsSet.size ? 'ครบถ้วน' : '—');
+
+  const calloutParts = [];
+  if (gpaTrendNote) calloutParts.push(`GPAX ${gpaTrendNote.replace(/^[↑↓→]\s*/,'').toLowerCase()}`);
+  calloutParts.push(`คะแนนสอบพร้อมอยู่ที่ ${Math.round(examReady*100)}%`);
+  if (missingReq.length) calloutParts.push(`ยังขาดคะแนนที่จำเป็นอีก ${missingReq.length} วิชา (${missingReq.slice(0,3).join(', ')})`);
+  else if (reqSubjsSet.size) calloutParts.push(`กรอกคะแนนที่จำเป็นสำหรับคณะที่เลือกไว้ครบแล้ว`);
+  const calloutText = `💡 <b>สรุปสำหรับผู้ปกครอง:</b> ${calloutParts.join(' · ')} แนะนำติดตามความคืบหน้าอย่างต่อเนื่องและตรวจสอบวันสมัคร/สอบให้ตรงกำหนดเวลา`;
 
   const printWin = window.open('', '_blank', 'width=900,height=700');
   printWin.document.write(`
@@ -5648,127 +5886,218 @@ function exportSummary() {
     <head>
       <meta charset="UTF-8">
       <title>รายงาน TCAS70 – ${name}</title>
-      <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+      <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
       <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Prompt', sans-serif; font-size: 13px; color: #0F172A; background: white; padding: 32px; }
-        .header { background: linear-gradient(135deg, #1A3A6B, #2856A3); color: white; padding: 24px 28px; border-radius: 12px; margin-bottom: 24px; }
-        .header h1 { font-size: 1.2rem; font-weight: 700; margin-bottom: 4px; }
-        .header p { font-size: 0.82rem; opacity: 0.8; }
-        .section { margin-bottom: 24px; }
-        .section-title { font-size: 0.95rem; font-weight: 700; color: #1A3A6B; border-bottom: 2px solid #E2E8F0; padding-bottom: 6px; margin-bottom: 12px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-        th { text-align: left; padding: 7px 10px; font-size: 0.75rem; color: #64748B; text-transform: uppercase; background: #F8FAFC; border-bottom: 1px solid #E2E8F0; }
-        td { padding: 8px 10px; font-size: 0.85rem; border-bottom: 1px solid #F1F5F9; }
-        tr:last-child td { border-bottom: none; }
-        .badge { display: inline-block; padding: 2px 8px; border-radius: 50px; font-size: 0.7rem; font-weight: 600; }
-        .badge-high { background: #D1FAE5; color: #065F46; }
-        .badge-medium { background: #FEF3C7; color: #92400E; }
-        .badge-low { background: #F1F5F9; color: #64748B; }
-        .score-bar { height: 5px; background: #EDF0F5; border-radius: 3px; overflow: hidden; display: inline-block; width: 80px; vertical-align: middle; margin-left: 8px; }
-        .score-bar-fill { height: 100%; border-radius: 3px; background: #1A3A6B; }
-        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        .info-item { margin-bottom: 6px; }
-        .info-label { font-size: 0.72rem; color: #94A3B8; text-transform: uppercase; }
-        .info-value { font-size: 0.88rem; font-weight: 500; }
-        .rec-item { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid #E2E8F0; border-radius: 8px; margin-bottom: 8px; }
-        .rec-badge { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; color: white; flex-shrink: 0; }
-        .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #E2E8F0; font-size: 0.72rem; color: #94A3B8; text-align: center; }
-        @media print { body { padding: 16px; } }
+        :root{
+          --primary:#1A3A6B; --primary-dark:#112850; --primary-light:#2856A3;
+          --accent:#F0A500; --accent-light:#FFD166;
+          --border:#E2E8F0; --border-light:#F1F5F9;
+          --text-primary:#0F172A; --text-secondary:#475569; --text-muted:#94A3B8;
+          --success:#10B981; --warning:#F59E0B; --danger:#EF4444;
+          --radius:10px; --radius-sm:7px;
+        }
+        *{box-sizing:border-box;margin:0;padding:0}
+        html{font-size:14px}
+        body{font-family:'Prompt',sans-serif;color:var(--text-primary);background:#fff;-webkit-font-smoothing:antialiased;padding:14px 16px}
+        .page{width:210mm;max-width:100%;margin:0 auto;padding:9mm 12mm}
+        .page-break{page-break-before:always}
+
+        .topbar{background:linear-gradient(135deg,var(--primary) 0%,var(--primary-light) 60%,#3D6BB3 100%);
+          color:#fff;border-radius:var(--radius);padding:12px 16px;position:relative;overflow:hidden}
+        .topbar::after{content:'';position:absolute;right:-40px;top:-40px;width:150px;height:150px;border-radius:50%;
+          background:radial-gradient(circle,rgba(240,165,0,.28),transparent 70%)}
+        .topbar-top{display:flex;align-items:center;gap:9px}
+        .topbar .logo{width:28px;height:28px;border-radius:7px;background:rgba(255,255,255,.16);color:#fff;
+          display:flex;align-items:center;justify-content:center;font-size:.78rem;flex-shrink:0}
+        .topbar .sch b{display:block;font-size:.72rem;font-weight:700}
+        .topbar .sch span{font-size:.58rem;opacity:.8}
+        .topbar .badge2{margin-left:auto;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.32);
+          font-size:.6rem;font-weight:700;padding:4px 11px;border-radius:50px;white-space:nowrap}
+        .topbar .title{margin-top:9px}
+        .topbar .title b{display:block;font-size:.92rem;font-weight:800;line-height:1.25}
+        .topbar .title span{display:block;font-size:.62rem;opacity:.85;margin-top:2px}
+        .topbar-meta{display:flex;gap:22px;margin-top:10px;flex-wrap:wrap;position:relative}
+        .topbar-meta div .l{font-size:.56rem;opacity:.7;text-transform:uppercase;letter-spacing:.03em}
+        .topbar-meta div .v{font-size:.74rem;font-weight:700;margin-top:1px}
+
+        .section{margin-top:10px;page-break-inside:avoid}
+        .section-title{display:flex;align-items:center;gap:7px;font-size:.8rem;font-weight:700;color:var(--primary);
+          border-bottom:1.5px solid var(--border);padding-bottom:6px;margin-bottom:9px}
+        .section-title .ic{width:20px;height:20px;border-radius:6px;background:var(--primary);color:#fff;
+          display:flex;align-items:center;justify-content:center;font-size:.66rem}
+        .section-title .count{margin-left:auto;font-size:.62rem;color:var(--text-muted);font-weight:500}
+
+        .ready-row{display:grid;grid-template-columns:110px 1fr;gap:14px;align-items:center}
+        .gauge-box{display:flex;flex-direction:column;align-items:center;gap:2px}
+        .gauge-box .lbl{font-size:.58rem;color:var(--text-muted);text-align:center}
+        .ready-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+        .rstat{border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;background:var(--border-light)}
+        .rstat .l{font-size:.6rem;color:var(--text-muted);font-weight:600}
+        .rstat .v{font-size:1.05rem;font-weight:800;color:var(--primary);margin-top:1px}
+        .rstat .s{font-size:.6rem;color:var(--text-secondary)}
+        .rstat.good .v{color:var(--success)}
+        .rstat.warn .v{color:var(--warning)}
+
+        .score-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .score-card{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;page-break-inside:avoid}
+        .score-card .hd{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+        .score-card .hd .tag{width:24px;height:24px;border-radius:6px;color:#fff;font-size:.62rem;font-weight:800;
+          display:flex;align-items:center;justify-content:center;flex-shrink:0}
+        .score-card .hd .nm{font-size:.76rem;font-weight:700}
+        .score-card .hd .avg{margin-left:auto;font-size:.9rem;font-weight:800;color:var(--primary)}
+        .subrow{display:flex;align-items:center;gap:7px;padding:3px 0}
+        .subrow .n{font-size:.66rem;color:var(--text-secondary);width:112px;flex-shrink:0}
+        .subrow .bar{flex:1;height:5px;background:#EDF0F5;border-radius:3px;overflow:hidden}
+        .subrow .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--primary),var(--primary-light));border-radius:3px}
+        .subrow .pv{font-size:.66rem;font-weight:700;width:64px;text-align:right;flex-shrink:0}
+        .subrow.missing .n,.subrow.missing .pv{color:var(--text-muted);font-weight:400}
+        .gpax-big{display:flex;align-items:center;gap:14px}
+        .gpax-big .num{font-size:1.6rem;font-weight:800;color:var(--primary)}
+        .gpax-big .num small{font-size:.7rem;color:var(--text-muted);font-weight:500}
+        .spark{flex:1}
+
+        .pf-row{display:flex;gap:10px;align-items:stretch}
+        .pf-count{border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;text-align:center;flex-shrink:0;min-width:76px}
+        .pf-count .v{font-size:1.1rem;font-weight:800;color:var(--primary)}
+        .pf-count .l{font-size:.58rem;color:var(--text-muted)}
+        .pf-chips{flex:1;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start}
+        .pf-chip{border:1px solid var(--border);border-radius:50px;padding:4px 11px 4px 8px;font-size:.66rem;display:flex;align-items:center;gap:5px;background:#fff}
+        .pf-chip .lv{font-size:.58rem;font-weight:700;padding:1px 6px;border-radius:50px}
+
+        .tier-legend{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px}
+        .tier-chip{font-size:.6rem;font-weight:700;padding:2px 9px;border-radius:50px}
+
+        table{width:100%;border-collapse:collapse}
+        .rt th{text-align:left;padding:6px 8px;font-size:.6rem;color:var(--text-muted);text-transform:uppercase;
+          letter-spacing:.02em;background:var(--border-light);font-weight:700}
+        .rt td{padding:6px 8px;font-size:.7rem;border-bottom:1px solid var(--border-light);vertical-align:middle}
+        .rt tr{page-break-inside:avoid}
+        .rt tr:last-child td{border-bottom:none}
+        .round-pill{font-size:.58rem;font-weight:700;padding:2px 8px;border-radius:5px;color:#fff;white-space:nowrap}
+        .uni-tag{font-size:.58rem;font-weight:700;color:#fff;padding:2px 6px;border-radius:4px;white-space:nowrap}
+        .chance-badge{font-size:.6rem;font-weight:700;padding:2px 8px;border-radius:50px;white-space:nowrap}
+
+        .rec-row{display:flex;align-items:center;gap:9px;padding:6px 9px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;page-break-inside:avoid}
+        .rec-rank{width:18px;height:18px;border-radius:5px;background:var(--accent);color:#fff;font-size:.6rem;font-weight:800;
+          display:flex;align-items:center;justify-content:center;flex-shrink:0}
+        .rec-badge{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+          font-size:.54rem;font-weight:800;color:#fff;flex-shrink:0}
+        .rec-info{flex:1;min-width:0}
+        .rec-info .n{font-size:.74rem;font-weight:700}
+        .rec-info .f{font-size:.62rem;color:var(--text-muted)}
+        .rec-match{font-size:.82rem;font-weight:800;color:var(--primary);flex-shrink:0}
+
+        .date-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+        .date-card{border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 9px;page-break-inside:avoid}
+        .date-card .d{font-size:.76rem;font-weight:800;color:var(--primary)}
+        .date-card .t{font-size:.6rem;color:var(--text-secondary)}
+        .date-card .badge{display:inline-block;margin-top:3px;font-size:.55rem;font-weight:700;padding:1px 6px;border-radius:50px;
+          background:#FEF3C7;color:#92400E}
+
+        .sign-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px}
+        .sign-line{height:34px;border-bottom:1px dashed var(--border)}
+        .sign-lbl{font-size:.62rem;color:var(--text-muted);margin-top:4px}
+
+        .callout{border-radius:var(--radius);padding:11px 14px;font-size:.68rem;line-height:1.65;border:1px dashed var(--border);
+          color:var(--text-secondary);background:var(--border-light)}
+        .footer-note{margin-top:12px;padding-top:8px;border-top:1px solid var(--border);font-size:.6rem;color:var(--text-muted);
+          text-align:center;line-height:1.5}
+
+        @media print{
+          body{padding:0}
+          .page{padding:10mm 12mm}
+        }
       </style>
     </head>
     <body>
-      <div class="header">
-        <h1>📋 รายงานข้อมูลนักเรียน TCAS70</h1>
-        <p>โรงเรียนโพธิสารพิทยากร | ปีการศึกษา 2570 | สร้างเมื่อ ${new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-      </div>
+      <div class="page">
 
-      <div class="section">
-        <div class="section-title">👤 ข้อมูลนักเรียน</div>
-        <div class="grid2">
-          <div>
-            <div class="info-item"><div class="info-label">ชื่อ-นามสกุล</div><div class="info-value">${name || '—'}</div></div>
-            <div class="info-item"><div class="info-label">รหัสนักเรียน</div><div class="info-value">${p.studentId || '—'}</div></div>
-            <div class="info-item"><div class="info-label">ห้องเรียน</div><div class="info-value">${p.classRoom || '—'}</div></div>
+        <div class="topbar">
+          <div class="topbar-top">
+            <div class="logo">🏫</div>
+            <div class="sch"><b>โรงเรียนโพธิสารพิทยากร</b><span>Potisarnpittayakorn School</span></div>
+            <div class="badge2">🎯 TCAS70 · ปีการศึกษา 2570</div>
           </div>
-          <div>
-            <div class="info-item"><div class="info-label">เป้าหมาย</div><div class="info-value">${p.target || '—'}</div></div>
-            <div class="info-item"><div class="info-label">อีเมล</div><div class="info-value">${p.email || '—'}</div></div>
-            <div class="info-item"><div class="info-label">โทรศัพท์</div><div class="info-value">${p.phone || '—'}</div></div>
+          <div class="title">
+            <b>TCAS70: Student Advisor for Potisarnpittayakorn School</b>
+            <span>แอปพลิเคชันแนะแนวการศึกษาต่อระดับอุดมศึกษา · สร้างเมื่อวันที่ ${todayThai}</span>
           </div>
+          <div class="topbar-meta">
+            <div><div class="l">ชื่อ-นามสกุล</div><div class="v">${name}</div></div>
+            <div><div class="l">รหัสนักเรียน</div><div class="v">${p.studentId || '—'}</div></div>
+            <div><div class="l">ชั้น / เลขที่</div><div class="v">${p.classRoom || '—'}${p.classNo ? ' · เลขที่ '+p.classNo : ''}</div></div>
+            <div><div class="l">โปรแกรม</div><div class="v">${PROGRAM_LABELS[p.program] || p.program || '—'}</div></div>
+          </div>
+          <div class="topbar-meta" style="margin-top:8px">
+            <div><div class="l">แผนการเรียน</div><div class="v">${p.studyPlan || '—'}</div></div>
+            <div style="flex:2.4"><div class="l">เป้าหมายการศึกษา (ทั้งหมด)</div><div class="v">${p.target || '—'}</div></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title"><span class="ic">🎯</span>ภาพรวมความพร้อม</div>
+          <div class="ready-row">
+            <div class="gauge-box">
+              <svg width="96" height="96" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="50" fill="none" stroke="#EDF0F5" stroke-width="13"/>
+                <circle cx="60" cy="60" r="50" fill="none" stroke="url(#g1)" stroke-width="13"
+                        stroke-linecap="round" stroke-dasharray="314.16" stroke-dashoffset="${(314.16*(1-overall)).toFixed(1)}"
+                        transform="rotate(-90 60 60)"/>
+                <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#1A3A6B"/><stop offset="100%" stop-color="#F0A500"/>
+                </linearGradient></defs>
+                <text x="60" y="57" text-anchor="middle" font-size="26" font-weight="800" fill="#0F172A" font-family="Prompt">${overallPct}%</text>
+                <text x="60" y="76" text-anchor="middle" font-size="10" fill="#94A3B8" font-family="Prompt">ความพร้อม</text>
+              </svg>
+              <div class="lbl">คะแนนสอบ 50% · GPAX 25%<br>Portfolio 25%</div>
+            </div>
+            <div class="ready-stats">
+              <div class="rstat ${prefs.length>=10?'good':'warn'}"><div class="l">คณะที่เลือกไว้</div><div class="v">${prefs.length} อันดับ</div><div class="s">${prefs.length>=10?'ครบ 10 อันดับ':'ยังไม่ครบ 10 อันดับ'}</div></div>
+              <div class="rstat good"><div class="l">โอกาสสูง–สูงมาก</div><div class="v">${highChanceCount} / ${prefs.length||0}</div><div class="s">อ้างอิงเกณฑ์ TCAS69</div></div>
+              <div class="rstat ${missingReq.length?'warn':'good'}"><div class="l">วิชาที่ยังไม่กรอก</div><div class="v">${missingReqNote}</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title"><span class="ic">📊</span>คะแนนสอบ</div>
+          <div class="score-grid">${gpaxCard}${tgatCard}${tpatCard}${aCard}</div>
+        </div>
+
+        ${portfolioSection}
+
+        <div class="section">
+          <div class="callout">${calloutText}</div>
         </div>
       </div>
 
-      ${scoreRows.length ? `
-      <div class="section">
-        <div class="section-title">📊 คะแนนสอบ</div>
-        <table>
-          <thead><tr><th>วิชา</th><th>คะแนน</th><th>เต็ม</th><th>%</th></tr></thead>
-          <tbody>
-            ${scoreRows.map(r => {
-              const pct = r.max ? Math.round(parseFloat(r.val) / parseFloat(r.max) * 100) : null;
-              return `<tr>
-                <td>${r.name}</td>
-                <td><strong>${r.val}</strong></td>
-                <td style="color:#94A3B8">${r.max}</td>
-                <td>${pct !== null ? `${pct}%<div class="score-bar"><div class="score-bar-fill" style="width:${pct}%"></div></div>` : '—'}</td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>` : ''}
+      <div class="page page-break">
+        <div class="section" style="margin-top:0">
+          <div class="section-title"><span class="ic">🗂️</span>แผนการสมัคร TCAS70 · 4 รอบ<span class="count">${prefs.length} อันดับที่เลือกไว้</span></div>
+          <div class="tier-legend">
+            <span class="tier-chip" style="background:#D1FAE5;color:#065F46">โอกาสสูงมาก</span>
+            <span class="tier-chip" style="background:#DCFCE7;color:#14532D">โอกาสสูง</span>
+            <span class="tier-chip" style="background:#FEF3C7;color:#92400E">โอกาสปานกลาง</span>
+            <span class="tier-chip" style="background:#FFEDD5;color:#7C2D12">โอกาสต่ำ</span>
+            <span class="tier-chip" style="background:#FEE2E2;color:#7F1D1D">โอกาสต่ำมาก</span>
+          </div>
+          ${roundSection}
+        </div>
 
-      ${allAwards.length ? `
-      <div class="section">
-        <div class="section-title">🏆 รางวัลและการแข่งขัน</div>
-        <table>
-          <thead><tr><th>ชื่อ</th><th>ประเภท</th><th>ระดับ</th><th>ผล</th><th>ปี</th></tr></thead>
-          <tbody>
-            ${allAwards.map(a => {
-              const lvl = TCAS_DATA.awardLevels.find(l => l.id === a.level);
-              return `<tr>
-                <td>${a.name}</td>
-                <td>${a._type}</td>
-                <td>${lvl ? lvl.name : '—'}</td>
-                <td>${a.result || '—'}</td>
-                <td>${a.year || '—'}</td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>` : ''}
+        ${recSection}
+        ${dateSection}
 
-      ${(portfolio.camps?.length || portfolio.activities?.length || portfolio.volunteer?.length) ? `
-      <div class="section">
-        <div class="section-title">🎯 ค่าย กิจกรรม และอาสาสมัคร</div>
-        <table>
-          <thead><tr><th>ชื่อ</th><th>ประเภท</th><th>ปี</th><th>ผู้จัด</th></tr></thead>
-          <tbody>
-            ${[...(portfolio.camps||[]).map(i=>({...i,_t:'ค่าย'})), ...(portfolio.activities||[]).map(i=>({...i,_t:'กิจกรรม'})), ...(portfolio.volunteer||[]).map(i=>({...i,_t:'อาสา'}))].map(i => `<tr><td>${i.name||'—'}</td><td>${i._t}</td><td>${i.year||'—'}</td><td>${i.organizer||'—'}</td></tr>`).join('')}
-          </tbody>
-        </table>
-      </div>` : ''}
+        <div class="section">
+          <div class="section-title"><span class="ic">✍️</span>ลงชื่อรับทราบ</div>
+          <div class="sign-row">
+            <div><div class="sign-line"></div><div class="sign-lbl">ลายเซ็นนักเรียน</div></div>
+            <div><div class="sign-line"></div><div class="sign-lbl">ลายเซ็นผู้ปกครอง / ที่ปรึกษา</div></div>
+          </div>
+        </div>
 
-      ${topRecs.length ? `
-      <div class="section">
-        <div class="section-title">🎯 คณะที่แนะนำ</div>
-        ${topRecs.map(({ program, result }) => {
-          const uni = getUniversityById(program.universityId);
-          const pct = Math.min(result.score, 100);
-          const cls = pct >= 65 ? 'badge-high' : pct >= 40 ? 'badge-medium' : 'badge-low';
-          return `<div class="rec-item">
-            <div class="rec-badge" style="background:${uni.color}">${uni.shortName.slice(0,2)}</div>
-            <div style="flex:1">
-              <div style="font-weight:600">${program.program}</div>
-              <div style="font-size:0.78rem;color:#64748B">${program.faculty} · ${uni.name}</div>
-            </div>
-            <span class="badge ${cls}">${pct}% เหมาะสม</span>
-          </div>`;
-        }).join('')}
-      </div>` : ''}
-
-      <div class="footer">
-        สร้างโดย TCAS70 Student Advisor | โรงเรียนโพธิสารพิทยากร | www.ps.ac.th | อ้างอิงข้อมูล www.mytcas.com
+        <div class="footer-note">
+          รายงานนี้สร้างโดยระบบ TCAS70 Student Advisor สำหรับโรงเรียนโพธิสารพิทยากร · ข้อมูลเกณฑ์อ้างอิงจาก TCAS69 (www.mytcas.com) เพื่อใช้ประกอบการวางแผนเบื้องต้น มิใช่เกณฑ์ทางการของ TCAS70
+        </div>
       </div>
       <script>window.onload = () => window.print();<\/script>
     </body>

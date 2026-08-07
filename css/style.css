@@ -5784,3 +5784,68 @@ textarea.form-control {
   .prog-overview-detail-btn { align-self: flex-end; }
   .prog-round-pill { min-width: 68px; }
 }
+
+/* ═══════════════════════════════════════════════
+   Dashboard v4.0
+   ═══════════════════════════════════════════════ */
+
+.section-label {
+  font-size: 0.75rem; font-weight: 700; color: var(--text-secondary);
+  letter-spacing: 0.04em; text-transform: uppercase;
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 10px;
+}
+.section-label-more {
+  margin-left: auto; font-size: 0.72rem; font-weight: 600;
+  color: var(--primary-light); text-transform: none; letter-spacing: 0; cursor: pointer;
+}
+
+/* Hero */
+.db-hero {
+  background: linear-gradient(120deg, #0D1F4A 0%, #1A3A8B 30%, #4A1A7A 62%, #A8185C 85%, #C8245C 100%);
+  padding: 20px 16px 16px;
+  box-shadow: 0 4px 24px rgba(168,24,92,0.25);
+}
+.db-hero-greeting { font-size: 0.68rem; color: rgba(255,255,255,0.5); }
+.db-hero-name { font-size: 1.1rem; font-weight: 700; color: white; margin: 3px 0 5px; }
+.db-hero-year { font-size: 0.68rem; color: rgba(255,255,255,0.65); background: rgba(255,255,255,0.1); display: inline-flex; padding: 2px 10px; border-radius: 20px; }
+.db-hero-body { display: flex; align-items: flex-start; gap: 14px; margin: 14px 0 12px; }
+.db-hero-ring-wrap { flex-shrink: 0; }
+.db-hero-legend { margin-top: 5px; display: flex; flex-direction: column; gap: 2px; }
+.db-hero-legend-row { display: flex; align-items: center; gap: 4px; font-size: 0.58rem; color: rgba(255,255,255,0.6); width: 88px; }
+.db-hero-legend-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.db-hero-legend-pct { margin-left: auto; font-weight: 700; font-size: 0.6rem; }
+.db-hero-stats { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.db-stat-row { display: flex; align-items: center; gap: 7px; }
+.db-stat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.db-stat-label { flex: 1; font-size: 0.75rem; color: rgba(255,255,255,0.7); }
+.db-stat-val { font-size: 0.82rem; font-weight: 700; }
+.db-hero-actions { display: flex; gap: 8px; }
+.btn-db-white { background: white; color: var(--primary); font-size: 0.78rem; font-weight: 600; padding: 7px 14px; border-radius: 20px; border: none; cursor: pointer; font-family: inherit; white-space: nowrap; }
+.btn-db-ghost { background: rgba(255,255,255,0.12); color: white; font-size: 0.78rem; font-weight: 600; padding: 7px 14px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; font-family: inherit; white-space: nowrap; }
+
+/* Upcoming Events */
+.db-upcoming-scroll { display: flex; gap: 10px; overflow-x: auto; padding: 0 16px 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.db-upcoming-scroll::-webkit-scrollbar { display: none; }
+.db-event-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; min-width: 110px; flex-shrink: 0; cursor: pointer; }
+.db-event-countdown { font-size: 1.05rem; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+.db-event-name { font-size: 0.72rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px; }
+.db-event-date { font-size: 0.63rem; color: var(--text-muted); margin-top: 2px; }
+
+/* Goal Cards */
+.db-goal-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 10px; }
+.db-rounds-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 5px; margin-top: 10px; }
+.db-round-slot { border-radius: 8px; padding: 5px 3px; text-align: center; border: 1px solid var(--border); }
+.db-round-slot.inactive { opacity: 0.35; }
+.db-round-name { font-size: 0.58rem; font-weight: 700; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.db-round-src { font-size: 0.55rem; color: var(--text-muted); }
+.db-round-na { font-size: 0.55rem; color: var(--text-muted); }
+
+/* Score grid */
+.db-score-grid { display: flex; flex-direction: column; gap: 10px; }
+
+/* Checklist */
+.db-check-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.db-check-item:last-child { border-bottom: none; }
+.db-check-icon { font-size: 1rem; flex-shrink: 0; line-height: 1; }
+.db-check-label { flex: 1; font-size: 0.83rem; }

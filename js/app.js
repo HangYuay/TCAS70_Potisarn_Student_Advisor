@@ -219,127 +219,262 @@ function renderDashboard() {
   const gpa = state.studentData.gpa;
   const scores = state.studentData.scores;
   const portfolio = state.studentData.portfolio;
+  const prefs = state.studentData.preferences || [];
 
-  const name = p.firstName ? `${p.firstName}` : 'นักเรียน';
+  const name = p.firstName ? `${p.firstName} ${p.lastName || ''}`.trim() : 'นักเรียน';
   const cumGPA = parseFloat(gpa.cumulative) || 0;
 
-  const tgat1 = parseFloat(scores.tgat1) || 0;
-  const tgat2 = parseFloat(scores.tgat2) || 0;
-  const tgat3 = parseFloat(scores.tgat3) || 0;
-  const tgatTotal = tgat1 + tgat2 + tgat3;
+  const tgat1 = parseFloat(scores.tgat1)||0, tgat2 = parseFloat(scores.tgat2)||0, tgat3 = parseFloat(scores.tgat3)||0;
+  const tgatTotal = tgat1+tgat2+tgat3;
+  const tpat1 = parseFloat(scores.tpat1)||0, tpat2 = parseFloat(scores.tpat2)||0,
+        tpat3s = parseFloat(scores.tpat3)||0, tpat4 = parseFloat(scores.tpat4)||0, tpat5 = parseFloat(scores.tpat5)||0;
+  const tpatAny = tpat1||tpat2||tpat3s||tpat4||tpat5;
 
-  const totalItems = (portfolio.camps?.length || 0) +
-    (portfolio.activities?.length || 0) +
-    (portfolio.awards?.length || 0) +
-    (portfolio.competitions?.length || 0) +
-    (portfolio.volunteer?.length || 0);
-  const nationalAwards = (portfolio.awards || [])
-    .filter(a => a.level === 'national' || a.level === 'international').length;
+  const aKeys = ['amath1','aeng','athai','ascience','achem','abio','aphy','asocial'];
+  const aNames = ['คณิต 1','อังกฤษ','ไทย','วิทย์','เคมี','ชีวะ','ฟิสิกส์','สังคม'];
+  const aVals = aKeys.map(k => parseFloat(scores[k])||0);
+  const aCount = aVals.filter(v => v > 0).length;
+
+  const totalItems = (portfolio.camps?.length||0)+(portfolio.activities?.length||0)+
+    (portfolio.awards?.length||0)+(portfolio.competitions?.length||0)+(portfolio.volunteer?.length||0);
+
+  // Overall readiness: 50% exam, 25% GPAX, 25% Portfolio
+  const gpaReady = cumGPA > 0 ? cumGPA/4 : 0;
+  const portReady = Math.min(totalItems/10, 1);
+  const examPcts = [];
+  if (tgatTotal > 0) examPcts.push(tgatTotal/300);
+  if (tpat1 > 0) examPcts.push(tpat1/300);
+  [tpat2,tpat3s,tpat4,tpat5].forEach(v => { if (v > 0) examPcts.push(v/100); });
+  aVals.forEach(v => { if (v > 0) examPcts.push(v/100); });
+  const examReady = examPcts.length ? examPcts.reduce((a,b)=>a+b,0)/examPcts.length : 0;
+  const overall = 0.5*examReady + 0.25*gpaReady + 0.25*portReady;
+  const overallPct = Math.round(overall*100);
+
+  // Donut segments (circumference ≈ 226)
+  const C = 226, GAP = 3;
+  const totalArc = overall * C;
+  const ec = 0.5*examReady, gc = 0.25*gpaReady, pc = 0.25*portReady;
+  const tc = ec+gc+pc || 1;
+  const nz = [ec,gc,pc].filter(v=>v>0).length;
+  const usable = Math.max(totalArc - (nz>1?(nz-1)*GAP:0), 0);
+  const eArc = usable*(ec/tc), gArc = usable*(gc/tc), pArc = usable*(pc/tc);
+  let pos = 0;
+  const seg = (arc, color) => {
+    if (arc < 0.5) return '';
+    const s = `<circle cx="42" cy="42" r="36" fill="none" stroke="${color}" stroke-width="7" stroke-dasharray="${arc.toFixed(1)} ${(C-arc).toFixed(1)}" stroke-linecap="round" stroke-dashoffset="${(C-pos).toFixed(1)}" transform="rotate(-90 42 42)"/>`;
+    return s;
+  };
+  const s1 = seg(eArc,'#93C5FD'); pos += eArc + (eArc>0&&gArc>0?GAP:0);
+  const s2 = seg(gArc,'#FFD166'); pos += gArc + (gArc>0&&pArc>0?GAP:0);
+  const s3 = seg(pArc,'#F9A8D4');
+
+  // Date string
+  const now = new Date();
+  const thDate = `${TH_DAYS_FULL[now.getDay()]}ที่ ${now.getDate()} ${TH_MONTHS_SHORT[now.getMonth()]} ${(now.getFullYear()+543).toString().slice(-2)}`;
+
+  // Upcoming events (future/ongoing, max 6)
+  const todayMid = new Date(); todayMid.setHours(0,0,0,0);
+  const upcoming = TCAS70_EVENTS.filter(ev => new Date(ev.end+'T00:00:00') >= todayMid).slice(0,6);
+
+  // Stat display helpers
+  const tpatDisplay = tpat1>0
+    ? `${tpat1}<span style="font-size:0.6rem;font-weight:400;opacity:0.6">/300</span>`
+    : tpatAny>0
+      ? `${Math.max(tpat2,tpat3s,tpat4,tpat5)}<span style="font-size:0.6rem;font-weight:400;opacity:0.6">/100</span>`
+      : '<span style="opacity:0.45">—</span>';
+  const aDisplay = aCount>0
+    ? `${aCount}<span style="font-size:0.6rem;font-weight:400;opacity:0.6"> วิชา</span>`
+    : '<span style="opacity:0.45">—</span>';
+
+  // Round info helpers
+  const roundNames4 = {1:'Portfolio',2:'โควตา',3:'Admission',4:'รับตรง'};
+  const roundColors4 = {1:'#6366F1',2:'#10B981',3:'#F59E0B',4:'#EF4444'};
+  const buildRoundSlot = (prog, r) => {
+    if (!prog.rounds?.includes(r)) {
+      return `<div class="db-round-slot inactive"><div class="db-round-name" style="color:var(--text-muted)">${roundNames4[r]}</div><div class="db-round-na">ไม่รับ</div></div>`;
+    }
+    const src = prog.roundSources?.[r] || 'tcas69';
+    const is69 = src === 'tcas69';
+    return `<div class="db-round-slot active" style="border-color:${roundColors4[r]}30;background:${roundColors4[r]}0A">
+      <div class="db-round-name" style="color:${roundColors4[r]}">${roundNames4[r]}</div>
+      <div class="db-round-src" style="color:${is69?'var(--text-muted)':'var(--success)'}">${is69?'อ้างอิง 69':'TCAS70'}</div>
+    </div>`;
+  };
+
+  // Goal card builder
+  const buildGoalCard = (pid, i) => {
+    const prog = TCAS_DATA.programs.find(pr => pr.id === pid);
+    if (!prog) return '';
+    const uni = getUniversityById(prog.universityId);
+    const hasFull = prog.programFull && prog.programFull !== prog.program;
+    const rankBg = i < 3 ? ['#F0A500','#94A3B8','#CD7F32'][i] : 'var(--surface-3)';
+    const rankColor = i < 3 ? 'white' : 'var(--text-muted)';
+    return `<div class="db-goal-card">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <div class="pref-rank" style="background:${rankBg};color:${rankColor};flex-shrink:0">${i+1}</div>
+        <div style="flex:1;min-width:0">
+          <div class="pref-item-header">
+            <span class="pref-uni-tag" style="background:${uni.color}20;color:${uni.color}">${uni.shortName}</span>
+            <span class="pref-prog-name">${prog.program}</span>
+          </div>
+          <div class="pref-item-sub">${prog.faculty}</div>
+          ${hasFull?`<div class="pref-item-full">${prog.programFull}</div>`:''}
+        </div>
+      </div>
+      <div class="db-rounds-grid">
+        ${[1,2,3,4].map(r => buildRoundSlot(prog, r)).join('')}
+      </div>
+    </div>`;
+  };
+
+  const visibleGoals = prefs.slice(0,3).map((pid,i) => buildGoalCard(pid,i)).join('');
+  const extraCount = prefs.length - 3;
+  const extraGoals = extraCount > 0 ? prefs.slice(3).map((pid,i) => buildGoalCard(pid,i+3)).join('') : '';
+
+  // Score bars
+  const renderScoreBar = t => {
+    const pct = Math.round(t.val/t.max*100);
+    const bc = pct>=70?'var(--success)':pct>=50?'var(--warning)':'var(--danger)';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:3px 0">
+      <div style="width:54px;font-size:0.7rem;color:var(--text-secondary);flex-shrink:0">${t.name}</div>
+      <div style="flex:1;height:5px;background:var(--surface-3);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${bc};border-radius:3px"></div>
+      </div>
+      <div style="width:32px;text-align:right;font-size:0.72rem;font-weight:600;color:${bc}">${t.val}</div>
+    </div>`;
+  };
+  const tgatBars = [{name:'TGAT1',val:tgat1,max:100},{name:'TGAT2',val:tgat2,max:100},{name:'TGAT3',val:tgat3,max:100}].filter(t=>t.val>0);
+  const tpatBars = [{name:'TPAT1',val:tpat1,max:300},{name:'TPAT2',val:tpat2,max:100},{name:'TPAT3',val:tpat3s,max:100},{name:'TPAT4',val:tpat4,max:100},{name:'TPAT5',val:tpat5,max:100}].filter(t=>t.val>0);
+  const aLevelBars = aVals.map((v,i)=>({name:aNames[i],val:v,max:100})).filter(t=>t.val>0);
+  const hasTgatTpat = tgatBars.length > 0 || tpatBars.length > 0;
+
+  // Checklist
+  const checks = [
+    {label:'กรอกข้อมูลส่วนตัว', done:!!(p.firstName), nav:'profile'},
+    {label:`เลือกคณะเป้าหมาย (${prefs.length}/10)`, done:prefs.length>=10, nav:'profile'},
+    {label:'กรอก GPAX', done:cumGPA>0, nav:'scores'},
+    {label:'กรอกคะแนน TGAT', done:tgatTotal>0, nav:'scores'},
+    {label:'กรอกคะแนน A-Level', done:aCount>0, nav:'scores'},
+    {label:'เพิ่มผลงาน Portfolio', done:totalItems>0, nav:'portfolio'},
+    {label:'ลงทะเบียน student.mytcas.com', done:false, nav:'guide'},
+    {label:'สมัครสอบ TGAT / TPAT', done:false, nav:'guide'},
+  ];
 
   const container = document.getElementById('dashboard-content');
   if (!container) return;
 
   container.innerHTML = `
-    <!-- Welcome Banner -->
-    <div class="welcome-banner">
-      <div class="welcome-title">สวัสดี, ${name}! 👋</div>
-      <div class="welcome-sub">ระบบแนะแนวการศึกษาต่อระดับอุดมศึกษา ปีการศึกษา 2570</div>
-      <div class="welcome-actions">
-        <button class="btn btn-white btn-sm" onclick="navigate('recommend')">🎯 ดูคณะที่เหมาะกับคุณ</button>
-        <button class="btn btn-white-outline btn-sm" onclick="navigate('university')">🔍 ค้นหาคณะ/มหาวิทยาลัย</button>
-        <button class="btn btn-white-outline btn-sm" onclick="navigate('guide')">📋 เกณฑ์ TCAS70</button>
+    <!-- ① Hero -->
+    <div class="db-hero">
+      <div class="db-hero-greeting">${thDate}</div>
+      <div class="db-hero-name">สวัสดี, ${name}! 👋</div>
+      <div class="db-hero-year">TCAS70 · ปีการศึกษา 2570</div>
+      <div class="db-hero-body">
+        <div class="db-hero-ring-wrap">
+          <svg width="88" height="88" viewBox="0 0 84 84">
+            <circle cx="42" cy="42" r="36" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="7"/>
+            ${s1}${s2}${s3}
+            <text x="42" y="39" text-anchor="middle" font-size="15" font-weight="800" fill="white" font-family="Prompt,system-ui,sans-serif">${overallPct}%</text>
+            <text x="42" y="52" text-anchor="middle" font-size="7" fill="rgba(255,255,255,0.5)" font-family="Prompt,system-ui,sans-serif">ความพร้อม</text>
+          </svg>
+          <div class="db-hero-legend">
+            <div class="db-hero-legend-row"><span class="db-hero-legend-dot" style="background:#93C5FD"></span><span>คะแนนสอบ</span><span class="db-hero-legend-pct" style="color:#93C5FD">50%</span></div>
+            <div class="db-hero-legend-row"><span class="db-hero-legend-dot" style="background:#FFD166"></span><span>GPAX</span><span class="db-hero-legend-pct" style="color:#FFD166">25%</span></div>
+            <div class="db-hero-legend-row"><span class="db-hero-legend-dot" style="background:#F9A8D4"></span><span>Portfolio</span><span class="db-hero-legend-pct" style="color:#F9A8D4">25%</span></div>
+          </div>
+        </div>
+        <div class="db-hero-stats">
+          <div class="db-stat-row"><span class="db-stat-dot" style="background:#FFD166"></span><span class="db-stat-label">GPAX</span><span class="db-stat-val" style="color:#FFD166">${cumGPA>0?cumGPA.toFixed(2)+'<span style="font-size:0.6rem;font-weight:400;opacity:0.6">/4.00</span>':'<span style="opacity:0.45">—</span>'}</span></div>
+          <div class="db-stat-row"><span class="db-stat-dot" style="background:#93C5FD"></span><span class="db-stat-label">TGAT</span><span class="db-stat-val" style="color:#93C5FD">${tgatTotal>0?tgatTotal+'<span style="font-size:0.6rem;font-weight:400;opacity:0.6">/300</span>':'<span style="opacity:0.45">—</span>'}</span></div>
+          <div class="db-stat-row"><span class="db-stat-dot" style="background:#C4B5FD"></span><span class="db-stat-label">TPAT</span><span class="db-stat-val" style="color:#C4B5FD">${tpatDisplay}</span></div>
+          <div class="db-stat-row"><span class="db-stat-dot" style="background:#6EE7B7"></span><span class="db-stat-label">A-Level</span><span class="db-stat-val" style="color:#6EE7B7">${aDisplay}</span></div>
+          <div class="db-stat-row"><span class="db-stat-dot" style="background:#F9A8D4"></span><span class="db-stat-label">Portfolio</span><span class="db-stat-val" style="color:#F9A8D4">${totalItems>0?totalItems+'<span style="font-size:0.6rem;font-weight:400;opacity:0.6"> รายการ</span>':'<span style="opacity:0.45">—</span>'}</span></div>
+        </div>
+      </div>
+      <div class="db-hero-actions">
+        <button class="btn-db-white" onclick="navigate('planner-hub')">🎯 แผน TCAS</button>
+        <button class="btn-db-ghost" onclick="navigate('scores')">📊 กรอกคะแนน →</button>
       </div>
     </div>
 
-    <!-- KPI Cards Row -->
-    <div class="dash-kpi-row">
-      ${renderKPICard('📊', 'เกรดเฉลี่ยสะสม', cumGPA > 0 ? cumGPA.toFixed(2) : '—', 'จาก 4.00', cumGPA / 4, 'var(--primary)', 'scores')}
-      ${renderKPICard('🧠', 'TGAT รวม', tgatTotal > 0 ? tgatTotal : '—', 'จาก 300', tgatTotal / 300, '#6366F1', 'scores')}
-      ${renderKPICard('🏆', 'ผลงาน/กิจกรรม', totalItems, 'รายการ', Math.min(totalItems / 20, 1), 'var(--accent)', 'portfolio')}
-      ${renderKPICard('🥇', 'รางวัลระดับชาติ+', nationalAwards, 'รางวัล', Math.min(nationalAwards / 5, 1), 'var(--success)', 'portfolio')}
+    <!-- ② วันสำคัญ -->
+    <div class="section-label" style="padding:0 16px;margin-top:18px">📅 วันสำคัญที่กำลังจะมาถึง <span class="section-label-more" onclick="navigate('calendar')">ดูทั้งหมด →</span></div>
+    <div class="db-upcoming-scroll">
+      ${upcoming.map(ev => {
+        const s = new Date(ev.start+'T00:00:00');
+        const ds = Math.round((s-todayMid)/86400000);
+        const ongoing = ds < 0;
+        const label = ongoing ? 'กำลังดำเนินการ' : ds===0 ? 'วันนี้' : `อีก ${ds} วัน`;
+        const urgent = !ongoing && ds <= 7;
+        return `<div class="db-event-chip" onclick="navigate('calendar')">
+          <div class="db-event-countdown" style="color:${urgent?'#EF4444':ev.color}">${ongoing?ev.icon+' ●':ev.icon+' '+ds}</div>
+          <div class="db-event-name">${ev.short||ev.title}</div>
+          <div class="db-event-date">${label}</div>
+        </div>`;
+      }).join('')}
     </div>
 
-    <!-- Main infographic grid -->
-    <div class="dash-infographic-grid">
+    <!-- ③ เป้าหมายของฉัน -->
+    <div class="section-label" style="padding:0 16px;margin-top:18px">
+      🎯 เป้าหมายของฉัน
+      <span style="font-weight:500;font-size:0.72rem;color:${prefs.length>=10?'var(--success)':'var(--warning)'};text-transform:none;letter-spacing:0">${prefs.length}/10${prefs.length<10?' (ไม่ครบ)':''}</span>
+      <span class="section-label-more" onclick="navigate('profile')">แก้ไข →</span>
+    </div>
+    <div style="padding:0 16px">
+      ${prefs.length===0
+        ? `<div class="card"><div class="card-body"><div class="empty-state" style="padding:20px 0">
+            <div class="empty-state-icon">🎓</div>
+            <div class="empty-state-title">ยังไม่ได้เลือกคณะเป้าหมาย</div>
+            <div class="empty-state-desc">เพื่อดูสถานะความพร้อมแต่ละรอบ</div>
+            <button class="btn btn-primary btn-sm" onclick="navigate('profile')">เลือกคณะ →</button>
+          </div></div></div>`
+        : `${visibleGoals}
+           ${extraCount>0?`<div id="db-goals-extra" style="display:none">${extraGoals}</div>`:''}
+           ${extraCount>0?`<button class="btn btn-ghost btn-sm" id="db-goals-toggle" data-extra="${extraCount}"
+             onclick="toggleDashGoals()" style="width:100%;margin-top:4px;border:1px dashed var(--border)">
+             ดูเพิ่มเติม ${extraCount} คณะ ↓
+           </button>`:''}`
+      }
+    </div>
 
-      <!-- Left column: GPA Chart + Score Bars -->
-      <div class="dash-col-left">
+    <!-- ④ ภาพรวมคะแนน -->
+    ${hasTgatTpat||aLevelBars.length?`
+    <div class="section-label" style="padding:0 16px;margin-top:18px">📊 ภาพรวมคะแนน <span class="section-label-more" onclick="navigate('scores')">ดูทั้งหมด →</span></div>
+    <div class="db-score-grid" style="padding:0 16px">
+      ${hasTgatTpat?`<div class="card" style="padding:12px 14px">
+        <div style="font-size:0.7rem;font-weight:700;color:var(--text-muted);letter-spacing:0.05em;margin-bottom:6px">TGAT / TPAT</div>
+        ${[...tgatBars,...tpatBars].map(renderScoreBar).join('')}
+      </div>`:''}
+      ${aLevelBars.length?`<div class="card" style="padding:12px 14px">
+        <div style="font-size:0.7rem;font-weight:700;color:var(--text-muted);letter-spacing:0.05em;margin-bottom:6px">A-Level</div>
+        ${aLevelBars.map(renderScoreBar).join('')}
+      </div>`:''}
+    </div>`:''}
 
-        <!-- GPA Bar Chart -->
-        <div class="card dash-chart-card">
-          <div class="dash-chart-header">
-            <span class="dash-chart-icon">📊</span>
-            <div>
-              <div class="dash-chart-title">เกรดเฉลี่ยแต่ละเทอม (GPAX)</div>
-              <div class="dash-chart-sub">ม.4 – ม.6</div>
-            </div>
-            <button class="btn btn-ghost btn-sm" onclick="navigate('scores')" style="margin-left:auto;font-size:0.75rem">แก้ไข →</button>
-          </div>
-          ${renderGPABarChart(gpa)}
-        </div>
-
-        <!-- TGAT Score Chart -->
-        <div class="card dash-chart-card">
-          <div class="dash-chart-header">
-            <span class="dash-chart-icon">🧠</span>
-            <div>
-              <div class="dash-chart-title">คะแนน TGAT</div>
-              <div class="dash-chart-sub">Thai General Aptitude Test</div>
-            </div>
-            <button class="btn btn-ghost btn-sm" onclick="navigate('scores')" style="margin-left:auto;font-size:0.75rem">แก้ไข →</button>
-          </div>
-          ${renderTGATChart(scores)}
-        </div>
-
-      </div>
-
-      <!-- Right column: Portfolio Donut + Recommendations -->
-      <div class="dash-col-right">
-
-        <!-- Portfolio Donut -->
-        <div class="card dash-chart-card">
-          <div class="dash-chart-header">
-            <span class="dash-chart-icon">🏆</span>
-            <div>
-              <div class="dash-chart-title">ผลงาน & กิจกรรม</div>
-              <div class="dash-chart-sub">Portfolio Summary</div>
-            </div>
-            <button class="btn btn-ghost btn-sm" onclick="navigate('portfolio')" style="margin-left:auto;font-size:0.75rem">แก้ไข →</button>
-          </div>
-          ${renderPortfolioDonut(portfolio)}
-        </div>
-
-        <!-- A-Level Radar/Bars -->
-        <div class="card dash-chart-card">
-          <div class="dash-chart-header">
-            <span class="dash-chart-icon">📚</span>
-            <div>
-              <div class="dash-chart-title">คะแนน A-Level</div>
-              <div class="dash-chart-sub">Academic Level</div>
-            </div>
-            <button class="btn btn-ghost btn-sm" onclick="navigate('scores')" style="margin-left:auto;font-size:0.75rem">แก้ไข →</button>
-          </div>
-          ${renderALevelBars(scores)}
-        </div>
-
+    <!-- ⑤ สิ่งที่ต้องทำ -->
+    <div class="section-label" style="padding:0 16px;margin-top:18px">✅ สิ่งที่ต้องทำ</div>
+    <div class="card" style="margin:0 16px">
+      <div class="card-body" style="padding:4px 16px">
+        ${checks.map(c => `<div class="db-check-item" onclick="navigate('${c.nav}')" style="cursor:pointer">
+          <div class="db-check-icon">${c.done?'✅':'⬜'}</div>
+          <div class="db-check-label" style="text-decoration:${c.done?'line-through':''};color:${c.done?'var(--text-muted)':'var(--text-primary)'}">${c.label}</div>
+          ${!c.done?'<div style="font-size:0.65rem;color:var(--text-muted)">→</div>':''}
+        </div>`).join('')}
       </div>
     </div>
 
-    <!-- TCAS Timeline -->
-    <div class="card" style="margin-top:0">
-      <div class="dash-chart-header" style="padding:16px 20px 0">
-        <span class="dash-chart-icon">📅</span>
-        <div class="dash-chart-title">ไทม์ไลน์ TCAS70</div>
-      </div>
-      ${renderTCASTimeline()}
-    </div>
-
-    <!-- Top Recommendations -->
-    <div style="margin-top:20px">
-      <div class="section-title">🎯 คณะที่เหมาะกับคุณ (Top 3)</div>
-      ${renderTopRecommendations()}
-    </div>
+    <div style="height:24px"></div>
   `;
+}
+
+function toggleDashGoals() {
+  const extra = document.getElementById('db-goals-extra');
+  const btn = document.getElementById('db-goals-toggle');
+  if (!extra||!btn) return;
+  const isHidden = extra.style.display==='none';
+  extra.style.display = isHidden?'':'none';
+  const count = parseInt(btn.dataset.extra)||0;
+  btn.textContent = isHidden?'ดูน้อยลง ↑':`ดูเพิ่มเติม ${count} คณะ ↓`;
 }
 
 function renderKPICard(icon, label, value, sub, ratio, color, page) {
@@ -3656,7 +3791,7 @@ function renderPlannerTargets(prefs) {
       </div>
     </div>`;
   }
-  const rows = prefs.map((pid, i) => {
+  const buildRow = (pid, i) => {
     const prog = TCAS_DATA.programs.find(p => p.id === pid);
     if (!prog) return '';
     const uni = getUniversityById(prog.universityId);
@@ -3673,7 +3808,10 @@ function renderPlannerTargets(prefs) {
           ${hasFull ? `<div class="pref-item-full">${prog.programFull}</div>` : ''}
         </div>
       </div>`;
-  }).join('');
+  };
+  const visibleRows = prefs.slice(0, 3).map((pid, i) => buildRow(pid, i)).join('');
+  const extraCount = prefs.length - 3;
+  const extraRows = extraCount > 0 ? prefs.slice(3).map((pid, i) => buildRow(pid, i + 3)).join('') : '';
   return `
   <div class="card">
     <div class="card-header">
@@ -3681,9 +3819,28 @@ function renderPlannerTargets(prefs) {
       <button class="btn btn-outline btn-sm" onclick="navigate('profile')">แก้ไข</button>
     </div>
     <div class="card-body">
-      <div class="pref-list">${rows}</div>
+      <div class="pref-list">
+        ${visibleRows}
+        ${extraCount > 0 ? `<div id="planner-targets-extra" style="display:none">${extraRows}</div>` : ''}
+      </div>
+      ${extraCount > 0 ? `
+        <button class="btn btn-ghost btn-sm" id="planner-targets-toggle" data-extra="${extraCount}"
+          onclick="togglePlannerTargets()"
+          style="width:100%;margin-top:8px;border:1px dashed var(--border)">
+          ดูเพิ่มเติม ${extraCount} คณะ ↓
+        </button>` : ''}
     </div>
   </div>`;
+}
+
+function togglePlannerTargets() {
+  const extra = document.getElementById('planner-targets-extra');
+  const btn = document.getElementById('planner-targets-toggle');
+  if (!extra || !btn) return;
+  const isHidden = extra.style.display === 'none';
+  extra.style.display = isHidden ? '' : 'none';
+  const count = parseInt(btn.dataset.extra) || 0;
+  btn.textContent = isHidden ? 'ดูน้อยลง ↑' : `ดูเพิ่มเติม ${count} คณะ ↓`;
 }
 
 function renderPlannerPortfolio(prefs) {

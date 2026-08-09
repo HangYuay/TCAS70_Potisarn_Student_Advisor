@@ -17,6 +17,7 @@ let state = {
   calendarView: 'timeline',
   calendarYear: 2026,
   calendarMonth: 10,  // 0-indexed: 10 = November
+  calendarSelectedUniId: null,  // university id currently shown in ปฏิทินรายมหาวิทยาลัย tab
   recommendRound: 'all',   // 'all'|'round1'|'round2'|'round3'|'round4'
   prefSearchQuery: '',     // search query inside preferences modal
   prefUniFilter: '',       // university id filter inside preferences modal
@@ -192,7 +193,7 @@ function renderPage(page) {
     case 'university': renderUniversitySearch(); break;
     case 'guide': renderGuide(); break;
     case 'recommend': renderRecommendations(); break;
-    case 'calendar': renderCalendar(); break;
+    case 'calendar': renderCalendar(); renderCalendarUniPicker(); break;
     case 'planner-hub': break;
     case 'planner': renderPlanner(); break;
     case 'studylog': renderStudyLog(); break;
@@ -1330,6 +1331,7 @@ function pickUni(e, id, val, label) {
   document.getElementById(id + '-list')?.classList.remove('open');
   if (id === 'pref-uni') { setPrefUni(val); }
   else if (id === 'prog-uni') { state.selectedUniversity = val || 'all'; renderProgramGrid(); }
+  else if (id === 'cal-uni') { state.calendarSelectedUniId = val || null; renderCalendarUniTab(); }
 }
 
 document.addEventListener('click', e => {
@@ -3554,7 +3556,10 @@ function pdCriteriaRows(criteria, color) {
   }).join('');
 }
 
-function pdProjectRow(proj, color, isTcas69 = false) {
+function pdProjectRow(proj, color, isTcas69 = false, program = null) {
+  // mytcas leaves project_name_th empty for the base/regular admission pool of the curriculum itself —
+  // mytcas.com's own site falls back to the curriculum's full name in that case, so we match that here.
+  const projName = proj.name || (program ? `${program.programFull || program.program} (รับร่วมกัน)` : 'โครงการรับสมัครทั่วไป');
   const oldCriteria = typeof proj.criteria === 'object' ? proj.criteria : {};
   const criteriaText = typeof proj.criteria === 'string' ? proj.criteria : (proj.criteriaText || '');
   const reqs = (proj.requirements || []).map(r =>
@@ -3577,10 +3582,16 @@ function pdProjectRow(proj, color, isTcas69 = false) {
   const deadlineHTML = proj.deadline
     ? `<div class="pd-deadline">📅 ปิดรับ: ${proj.deadline}</div>`
     : '';
+  const interviewBits = [];
+  if (proj.interviewDate) interviewBits.push(proj.interviewDate);
+  if (proj.interviewTime) interviewBits.push(proj.interviewTime);
+  const interviewHTML = (interviewBits.length || proj.interviewLocation)
+    ? `<div class="pd-deadline">🗣️ สอบสัมภาษณ์: ${interviewBits.join(' · ') || 'รอประกาศวัน'}${proj.interviewLocation ? ` · ${proj.interviewLocation}` : ''}</div>`
+    : '';
 
   return `<div class="pd-proj-row" onclick="toggleDetailProject(this)">
     <div class="pd-proj-top">
-      <span class="pd-proj-name">${proj.name}</span>
+      <span class="pd-proj-name">${projName}</span>
       <span class="pd-proj-seats">${isTcas69 || proj.seats === 0 ? 'รอ TCAS70 ประกาศ' : proj.seats + ' คน'}</span>
       <span class="pd-proj-arr">▾</span>
     </div>
@@ -3588,6 +3599,7 @@ function pdProjectRow(proj, color, isTcas69 = false) {
       ${reqs ? `<div class="pd-sl">คุณสมบัติ</div><ul class="pd-req-list">${reqs}</ul>` : ''}
       ${criteriaHTML}
       ${deadlineHTML}
+      ${interviewHTML}
       ${linkHTML}
     </div>
   </div>`;
@@ -3625,7 +3637,7 @@ function pdRoundPanel(program, r) {
   let body = '';
   if (src === 'tcas70') {
     if (projects.length > 0) {
-      body = projects.map(p => pdProjectRow(p, color)).join('');
+      body = projects.map(p => pdProjectRow(p, color, false, program)).join('');
     } else if (Object.keys(criteria).length) {
       body = `<div style="padding:10px 13px">${pdCriteriaRows(criteria, color)}</div>`;
     } else {
@@ -3634,7 +3646,7 @@ function pdRoundPanel(program, r) {
   } else {
     let criteriaHTML = '';
     if (projects.length > 0) {
-      criteriaHTML = projects.map(p => pdProjectRow(p, color, true)).join('');
+      criteriaHTML = projects.map(p => pdProjectRow(p, color, true, program)).join('');
     } else if (Object.keys(criteria).length) {
       criteriaHTML = `<div class="pd-proj-row" onclick="toggleDetailProject(this)" style="margin-top:4px">
           <div class="pd-proj-top">
@@ -6373,6 +6385,138 @@ function calNavMonth(delta) {
 }
 
 // ---- Main render (calendar grid) ----
+function switchCalendarTab(btn, tab) {
+  const section = document.getElementById('page-calendar');
+  section?.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  section?.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`calendar-tab-${tab}`)?.classList.add('active');
+}
+
+// ---- ปฏิทินรายมหาวิทยาลัย ----
+const CAL_UNI_ROUND_NAMES  = { 1:'รอบ 1 · Portfolio', 2:'รอบ 2 · โควตา', 3:'รอบ 3 · Admission', 4:'รอบ 4 · รับตรงอิสระ' };
+const CAL_UNI_ROUND_COLORS = { 1:'#6366F1', 2:'#10B981', 3:'#F59E0B', 4:'#EF4444' };
+
+function getUniDeadlineItems(uniId) {
+  const progs = TCAS_DATA.programs.filter(p => p.universityId === uniId);
+  const items = [];
+  progs.forEach(prog => {
+    [1,2,3,4].forEach(r => {
+      (prog.roundProjects?.[r] || []).forEach(proj => {
+        if (!proj.deadline) return;
+        items.push({
+          date: proj.deadline,
+          round: r,
+          isReal: (prog.roundSources || {})[r] === 'tcas70',
+          program: prog.program,
+          faculty: prog.faculty,
+          progId: prog.id,
+        });
+      });
+    });
+  });
+  items.sort((a, b) => new Date(a.date) - new Date(b.date));
+  return { items, progCount: progs.length };
+}
+
+const CAL_UNI_ROUND_ICONS = { 1:'📁', 2:'🏷️', 3:'🎯', 4:'🏛️' };
+
+function renderCalendarUniPicker() {
+  const mount = document.getElementById('cal-uni-picker');
+  if (!mount) return;
+  mount.innerHTML = uniDropdownHTML('cal-uni', state.calendarSelectedUniId);
+  renderCalendarUniTab();
+}
+
+// Broad, round-level overview for one university (start/end of each round) —
+// deliberately NOT itemized per program/curriculum, since that detail already
+// lives in ค้นหาคณะ/มหาวิทยาลัย → รายละเอียดหลักสูตร; showing it twice would be redundant.
+function renderCalendarUniTab() {
+  const container = document.getElementById('calendar-uni-content');
+  if (!container) return;
+  const uniId = state.calendarSelectedUniId;
+
+  if (!uniId) {
+    container.innerHTML = `
+      <div class="empty-state" style="padding:32px 0">
+        <div class="empty-state-icon">🏫</div>
+        <div class="empty-state-title">เลือกมหาวิทยาลัยที่ต้องการดู</div>
+        <div class="empty-state-desc">เลือกจากรายการด้านบน เพื่อดูกำหนดการรับสมัครของมหาวิทยาลัยนั้นโดยเฉพาะ</div>
+      </div>`;
+    return;
+  }
+
+  const uni  = getUniversityById(uniId);
+  const { items, progCount } = getUniDeadlineItems(uniId);
+  const progsAll = TCAS_DATA.programs.filter(p => p.universityId === uniId);
+
+  const uniHeaderHTML = `
+    <div class="cal-uni-header">
+      <div class="cal-uni-badge" style="background:${uni.color}">${uni.shortName}</div>
+      <div>
+        <div class="cal-uni-name">${uni.name}</div>
+        <div class="cal-uni-sub">${progCount} หลักสูตรในระบบ</div>
+      </div>
+    </div>`;
+
+  const anyRoundOffered = [1,2,3,4].some(r => progsAll.some(p => p.rounds?.includes(r)));
+  if (!progCount || !anyRoundOffered) {
+    container.innerHTML = `${uniHeaderHTML}
+      <div class="empty-state" style="padding:32px 0">
+        <div class="empty-state-icon">📭</div>
+        <div class="empty-state-title">มหาวิทยาลัยยังไม่ประกาศปฏิทิน TCAS70</div>
+        <div class="empty-state-desc">${uni.name} ยังไม่มีข้อมูลกำหนดการในระบบขณะนี้ ลองดูใหม่หลังอัปเดตข้อมูลรอบถัดไป</div>
+      </div>`;
+    return;
+  }
+
+  const cardsHTML = [1,2,3,4].map(r => {
+    const roundProgs = progsAll.filter(p => p.rounds?.includes(r));
+    if (!roundProgs.length) {
+      return `<div class="cal-uni-round-card off" style="--rc:${CAL_UNI_ROUND_COLORS[r]}">
+        <div class="cal-uni-round-icon">${CAL_UNI_ROUND_ICONS[r]}</div>
+        <div class="cal-uni-round-name">${CAL_UNI_ROUND_NAMES[r]}</div>
+        <div class="cal-uni-round-date">—</div>
+        <div class="cal-uni-round-sub">ไม่เปิดรับสมัคร</div>
+      </div>`;
+    }
+    const roundItems = items.filter(it => it.round === r);
+    if (!roundItems.length) {
+      // รอบ 3/4 เป็นช่วงสมัครกลางที่ mytcas กำหนดตายตัวเหมือนกันทุกมหาวิทยาลัย —
+      // ถ้ายังไม่มีข้อมูลเฉพาะโครงการ ใช้ช่วงเวลากลางนี้แทน "ยังไม่ประกาศ" เพราะเป็นข้อมูลจริงที่ทราบอยู่แล้ว
+      const nationalEv = (r === 3 || r === 4) ? TCAS70_EVENTS.find(e => e.type === 'round' + r) : null;
+      if (nationalEv) {
+        return `<div class="cal-uni-round-card" style="--rc:${CAL_UNI_ROUND_COLORS[r]}">
+          <div class="cal-uni-round-icon">${CAL_UNI_ROUND_ICONS[r]}</div>
+          <div class="cal-uni-round-name">${CAL_UNI_ROUND_NAMES[r]}</div>
+          <div class="cal-uni-round-date">${calThDateRange(nationalEv.start, nationalEv.end)}</div>
+          <div class="cal-uni-round-sub">ตามกำหนดการกลาง TCAS70 · ${roundProgs.length} หลักสูตร</div>
+        </div>`;
+      }
+      return `<div class="cal-uni-round-card pending" style="--rc:${CAL_UNI_ROUND_COLORS[r]}">
+        <div class="cal-uni-round-icon">${CAL_UNI_ROUND_ICONS[r]}</div>
+        <div class="cal-uni-round-name">${CAL_UNI_ROUND_NAMES[r]}</div>
+        <div class="cal-uni-round-date">ยังไม่ประกาศ</div>
+        <div class="cal-uni-round-sub">${roundProgs.length} หลักสูตรเปิดรับ</div>
+      </div>`;
+    }
+    const dates = roundItems.map(it => it.date).sort();
+    const minD = dates[0], maxD = dates[dates.length - 1];
+    const dateLabel = minD === maxD ? calThDateStr(minD) : calThDateRange(minD, maxD);
+    const anyReal = roundItems.some(it => it.isReal);
+    return `<div class="cal-uni-round-card" style="--rc:${CAL_UNI_ROUND_COLORS[r]}">
+      <div class="cal-uni-round-icon">${CAL_UNI_ROUND_ICONS[r]}</div>
+      <div class="cal-uni-round-name">${CAL_UNI_ROUND_NAMES[r]}</div>
+      <div class="cal-uni-round-date">ปิดรับ ${dateLabel}</div>
+      <div class="cal-uni-round-sub">${anyReal ? '✓ TCAS70' : '⏱ อ้างอิง TCAS69'} · ${roundProgs.length} หลักสูตร</div>
+    </div>`;
+  }).join('');
+
+  container.innerHTML = `${uniHeaderHTML}
+    <div class="cal-uni-round-grid">${cardsHTML}</div>
+    <div class="cal-uni-hint">ดูเกณฑ์และกำหนดการละเอียดรายหลักสูตรได้ที่เมนู "ค้นหาคณะ/มหาวิทยาลัย"</div>`;
+}
+
 function renderCalendar() {
   const container = document.getElementById('calendar-content');
   if (!container) return;

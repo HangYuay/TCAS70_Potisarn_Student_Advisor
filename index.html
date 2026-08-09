@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="images/icon-180.png">
   <title>TCAS70: Student Advisor for Potisarnpittayakorn School</title>
-  <link rel="stylesheet" href="css/style.css?v=30">
+  <link rel="stylesheet" href="css/style.css?v=33">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='12' fill='%231B3BAE'/><polygon points='50,5 82,18 88,46 50,48 12,46 18,18' fill='%231B3BAE'/><rect x='12' y='46' width='18' height='36' fill='%231B3BAE'/><rect x='70' y='46' width='18' height='36' fill='%231B3BAE'/><path d='M50,8 C62,6 82,16 86,36 C89,50 84,66 70,76 C62,82 54,86 51,89 L50,92 L49,89 C46,86 38,82 30,76 C16,66 11,50 14,36 C18,16 38,6 50,8Z' fill='white'/><path d='M50,12 C60,10 78,20 82,38 C85,52 80,67 67,77 C59,83 52,87 50.5,90 L50,92 L49.5,90 C48,87 41,83 33,77 C20,67 15,52 18,38 C22,20 40,10 50,12Z' fill='%23D61A8E'/></svg>">
 </head>
 <body>
@@ -312,8 +312,24 @@
         <h2>📅 ปฏิทิน TCAS70</h2>
         <p>กำหนดการสอบและรับสมัคร TCAS ปีการศึกษา 2569–2570</p>
       </div>
-      <img src="images/tcas70-calendar-infographic.jpg" alt="ปฏิทิน TCAS70 ฉบับเต็ม โดยเครือข่ายผู้ปกครองโรงเรียนโพธิสารพิทยากร" class="cal-hero-img">
-      <div id="calendar-content"></div>
+
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchCalendarTab(this,'national')">📅 ปฏิทิน TCAS70</button>
+        <button class="tab-btn" onclick="switchCalendarTab(this,'university')">🏫 ปฏิทินรายมหาวิทยาลัย</button>
+      </div>
+
+      <div id="calendar-tab-national" class="tab-panel active">
+        <img src="images/tcas70-calendar-infographic.jpg" alt="ปฏิทิน TCAS70 ฉบับเต็ม โดยเครือข่ายผู้ปกครองโรงเรียนโพธิสารพิทยากร" class="cal-hero-img">
+        <div id="calendar-content"></div>
+      </div>
+
+      <div id="calendar-tab-university" class="tab-panel">
+        <div class="cal-uni-picker-wrap">
+          <div class="cal-uni-picker-label">เลือกมหาวิทยาลัยที่ต้องการดูกำหนดการ</div>
+          <div id="cal-uni-picker"></div>
+        </div>
+        <div id="calendar-uni-content"></div>
+      </div>
     </section>
 
     <section id="page-guide" class="page-section hidden">
@@ -582,8 +598,8 @@
   </nav>
 
   <!-- Scripts -->
-  <script src="js/data.js?v=21"></script>
-  <script src="js/app.js?v=89"></script>
+  <script src="js/data.js?v=23"></script>
+  <script src="js/app.js?v=96"></script>
   <script>
     // Register Service Worker for PWA / offline support
     if ('serviceWorker' in navigator) {

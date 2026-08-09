@@ -4608,7 +4608,47 @@ textarea.form-control {
 .tcal-link-btn.primary  { background: var(--primary); color: white; }
 .tcal-link-btn.secondary { background: var(--surface); color: var(--primary); border: 1.5px solid var(--border); }
 
+/* ---- ปฏิทินรายมหาวิทยาลัย ---- */
+.cal-uni-picker-wrap { margin: 14px 0 18px; }
+.cal-uni-picker-label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; }
+
+.cal-uni-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; border-radius: var(--radius); background: var(--surface-2);
+  border: 1px solid var(--border); margin-bottom: 16px;
+}
+.cal-uni-badge {
+  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: white; font-weight: 800; font-size: 0.72rem;
+}
+.cal-uni-name { font-weight: 700; font-size: 0.95rem; color: var(--text-primary); }
+.cal-uni-sub  { font-size: 0.76rem; color: var(--text-muted); margin-top: 2px; }
+
+.cal-uni-round-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+}
+.cal-uni-round-card {
+  border: 1.5px solid var(--border); border-top: 4px solid var(--rc, var(--primary));
+  border-radius: var(--radius); padding: 14px; background: var(--surface);
+  text-align: center;
+}
+.cal-uni-round-card.off, .cal-uni-round-card.pending { opacity: 0.55; }
+.cal-uni-round-icon { font-size: 1.5rem; margin-bottom: 6px; }
+.cal-uni-round-name { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+.cal-uni-round-date { font-size: 0.92rem; font-weight: 800; color: var(--rc, var(--primary)); line-height: 1.3; }
+.cal-uni-round-sub  { font-size: 0.68rem; color: var(--text-muted); margin-top: 4px; }
+
+.cal-uni-hint {
+  margin-top: 16px; padding: 10px 14px; border-radius: var(--radius-sm);
+  background: var(--surface-2); border: 1px dashed var(--border);
+  font-size: 0.76rem; color: var(--text-secondary); text-align: center;
+}
+
 @media (max-width: 480px) {
+  .cal-uni-round-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .cal-uni-round-card { padding: 10px; }
+  .cal-uni-round-date { font-size: 0.8rem; }
   .tcal-cell { min-height: 80px; padding: 4px 2px 2px; }
   .tcal-nav-month { font-size: 0.95rem; }
   .tcal-ev-bar { font-size: 0.6rem; padding: 2px 3px; }

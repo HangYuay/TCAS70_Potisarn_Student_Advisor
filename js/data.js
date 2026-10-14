@@ -4,8 +4,8 @@
 // ============================================================
 
 // ---- App Version & Changelog ----
-const APP_VERSION = "7.1.0";
-const APP_VERSION_DATE = "2026-10-11";
+const APP_VERSION = "7.1.1";
+const APP_VERSION_DATE = "2026-10-14";
 
 // Each entry: { version, date "YYYY-MM-DD", updates: [string, ...] }
 // Add new entry at TOP when releasing an update.
@@ -13,6 +13,13 @@ const APP_VERSION_DATE = "2026-10-11";
 //   "tcas70" = confirmed from mytcas.com TCAS70
 //   "tcas69" = using estimated/reference TCAS69 data (default for all rounds until updated)
 const CHANGELOG = [
+  {
+    version: "7.1.1",
+    date: "2026-10-14",
+    updates: [
+      "📊 เพิ่มการเก็บสถิติการใช้งานแบบไม่ระบุตัวตน (จำนวนผู้ใช้งานและระยะเวลาใช้งาน) ผ่าน Google Analytics — ไม่เก็บข้อมูลเกรด คะแนน หรือข้อมูลส่วนตัวของนักเรียน"
+    ]
+  },
   {
     version: "7.1.0",
     date: "2026-10-11",
